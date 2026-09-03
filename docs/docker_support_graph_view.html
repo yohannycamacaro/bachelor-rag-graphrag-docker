@@ -1,0 +1,2737 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docker Support Knowledge Graph</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#f7f9fc, #101418);
+      --panel: light-dark(#ffffff, #171d24);
+      --text: light-dark(#172033, #edf3fb);
+      --muted: light-dark(#5c687a, #9aa7b8);
+      --line: light-dark(#ccd6e4, #354252);
+      --problem: #d14d44;
+      --component: #2f78c4;
+      --cause: #b7791f;
+      --diagnosis: #6b46c1;
+      --solution: #2f855a;
+      --document: #64748b;
+      --selected: #805ad5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .workspace,
+    aside {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .workspace {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .stats {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 14px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    input[type="search"] {
+      min-width: 260px;
+      flex: 1;
+      max-width: 460px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 106px);
+      min-height: 620px;
+    }
+
+    .edge {
+      stroke: var(--line);
+      stroke-width: 1.4;
+      marker-end: url(#arrow);
+    }
+
+    .edge-label {
+      fill: var(--muted);
+      font-size: 11px;
+      paint-order: stroke;
+      stroke: var(--panel);
+      stroke-width: 4px;
+    }
+
+    .node circle {
+      stroke: var(--panel);
+      stroke-width: 2;
+      cursor: pointer;
+    }
+
+    .node text {
+      fill: var(--text);
+      font-size: 12px;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: var(--panel);
+      stroke-width: 4px;
+    }
+
+    .node.selected circle {
+      stroke: var(--selected);
+      stroke-width: 4;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    aside {
+      padding: 16px;
+      overflow: auto;
+      max-height: calc(100vh - 32px);
+    }
+
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .detail {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .edge-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .edge-card {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    .edge-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .edge-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        max-height: none;
+      }
+
+      svg {
+        height: 720px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="workspace" aria-label="Knowledge graph">
+      <header>
+        <h1>Docker Support Knowledge Graph</h1>
+        <div class="stats" id="stats"></div>
+      </header>
+      <div class="controls">
+        <input id="search" type="search" placeholder="Search node label, description, or keyword">
+        <label><input type="checkbox" data-type="problem" checked> Problems</label>
+        <label><input type="checkbox" data-type="component" checked> Components</label>
+        <label><input type="checkbox" data-type="cause" checked> Causes</label>
+        <label><input type="checkbox" data-type="diagnosis" checked> Diagnosis</label>
+        <label><input type="checkbox" data-type="solution" checked> Solutions</label>
+        <label><input type="checkbox" data-type="document" checked> Documents</label>
+      </div>
+      <svg id="graph" role="img" aria-label="Graph of Docker support problems, causes, components, and solutions">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+      </svg>
+    </section>
+    <aside aria-live="polite">
+      <h2 id="detail-title">Select a node</h2>
+      <span class="pill" id="detail-type" style="background: var(--muted)">graph</span>
+      <p class="detail" id="detail-text">Click a circle to see its description, keywords, and connected relations.</p>
+      <div class="edge-list" id="edge-list"></div>
+    </aside>
+  </main>
+
+  <script>
+    const graph = {
+  "nodes": [
+    {
+      "id": "problem.daemon_unreachable",
+      "type": "problem",
+      "label": "Cannot connect to Docker daemon",
+      "description": "Docker client cannot communicate with the Docker daemon.",
+      "keywords": [
+        "daemon",
+        "cannot connect",
+        "docker info",
+        "DOCKER_HOST",
+        "service"
+      ]
+    },
+    {
+      "id": "component.docker_daemon",
+      "type": "component",
+      "label": "Docker daemon",
+      "description": "Background service that manages Docker objects and receives Docker API requests.",
+      "keywords": [
+        "daemon",
+        "dockerd",
+        "service",
+        "engine"
+      ]
+    },
+    {
+      "id": "cause.daemon_not_running",
+      "type": "cause",
+      "label": "Docker daemon is not running",
+      "description": "The local Docker service is stopped or unavailable.",
+      "keywords": [
+        "not running",
+        "stopped",
+        "service status"
+      ]
+    },
+    {
+      "id": "cause.wrong_docker_host",
+      "type": "cause",
+      "label": "Wrong DOCKER_HOST",
+      "description": "The client is configured to connect to another Docker host.",
+      "keywords": [
+        "DOCKER_HOST",
+        "remote host",
+        "environment variable"
+      ]
+    },
+    {
+      "id": "solution.start_docker_service",
+      "type": "solution",
+      "label": "Start or fix Docker service",
+      "description": "Start the Docker service locally or verify the remote daemon and network path.",
+      "keywords": [
+        "start service",
+        "systemctl",
+        "docker desktop"
+      ]
+    },
+    {
+      "id": "problem.service_name_unreachable",
+      "type": "problem",
+      "label": "Compose service name cannot be reached",
+      "description": "A container cannot reach another Compose service using its service name.",
+      "keywords": [
+        "service name",
+        "db",
+        "database",
+        "reach",
+        "unreachable",
+        "compose",
+        "network",
+        "dns",
+        "container"
+      ]
+    },
+    {
+      "id": "component.compose_default_network",
+      "type": "component",
+      "label": "Compose default network",
+      "description": "Default network where Compose services can discover each other by service name.",
+      "keywords": [
+        "default network",
+        "service discovery",
+        "internal dns",
+        "compose"
+      ]
+    },
+    {
+      "id": "cause.not_same_network",
+      "type": "cause",
+      "label": "Services are not on the same network",
+      "description": "The source and target services do not share a Docker network.",
+      "keywords": [
+        "different network",
+        "not same network",
+        "custom network",
+        "isolated"
+      ]
+    },
+    {
+      "id": "cause.wrong_port_context",
+      "type": "cause",
+      "label": "Host port and container port are confused",
+      "description": "The user applies host-port logic to container-to-container communication.",
+      "keywords": [
+        "host port",
+        "container port",
+        "ports",
+        "published port"
+      ]
+    },
+    {
+      "id": "solution.use_service_name_container_port",
+      "type": "solution",
+      "label": "Use service name and container port",
+      "description": "Inside the Compose network, connect to the target service name and container port.",
+      "keywords": [
+        "service name",
+        "database",
+        "container port",
+        "db:5432"
+      ]
+    },
+    {
+      "id": "problem.env_missing",
+      "type": "problem",
+      "label": "Environment variable missing in container",
+      "description": "The application cannot read an expected variable at runtime.",
+      "keywords": [
+        "environment",
+        "env",
+        ".env",
+        "variable",
+        "container"
+      ]
+    },
+    {
+      "id": "component.compose_interpolation",
+      "type": "component",
+      "label": "Compose interpolation",
+      "description": "Compose substitutes variables into the Compose model before starting services.",
+      "keywords": [
+        "interpolation",
+        ".env",
+        "compose config",
+        "environment"
+      ]
+    },
+    {
+      "id": "cause.interpolation_not_runtime_env",
+      "type": "cause",
+      "label": "Interpolation is not runtime environment",
+      "description": "A variable used to build the Compose file is not automatically available inside the container.",
+      "keywords": [
+        "runtime",
+        "container environment",
+        "interpolation",
+        "not available"
+      ]
+    },
+    {
+      "id": "solution.define_service_environment",
+      "type": "solution",
+      "label": "Define variable in service environment",
+      "description": "Add the variable to the service environment if the application must read it.",
+      "keywords": [
+        "environment section",
+        "env_file",
+        "service environment"
+      ]
+    },
+    {
+      "id": "problem.data_not_persistent",
+      "type": "problem",
+      "label": "Data disappears after container recreation",
+      "description": "Data written inside a container disappears after the container is removed.",
+      "keywords": [
+        "data disappears",
+        "volume",
+        "persistent",
+        "restart",
+        "recreate"
+      ]
+    },
+    {
+      "id": "component.docker_volume",
+      "type": "component",
+      "label": "Docker volume",
+      "description": "Persistent storage managed by Docker and mounted into containers.",
+      "keywords": [
+        "volume",
+        "named volume",
+        "mount",
+        "storage"
+      ]
+    },
+    {
+      "id": "cause.no_persistent_mount",
+      "type": "cause",
+      "label": "No persistent mount configured",
+      "description": "The application writes data to the container writable layer instead of a volume or bind mount.",
+      "keywords": [
+        "writable layer",
+        "no mount",
+        "no volume"
+      ]
+    },
+    {
+      "id": "solution.use_named_volume",
+      "type": "solution",
+      "label": "Use a named volume or bind mount",
+      "description": "Mount persistent storage at the path where the application writes data.",
+      "keywords": [
+        "named volume",
+        "bind mount",
+        "persist data"
+      ]
+    },
+    {
+      "id": "problem.external_network_missing",
+      "type": "problem",
+      "label": "External network not found",
+      "description": "Compose references an external network that does not exist.",
+      "keywords": [
+        "external network",
+        "network not found",
+        "compose"
+      ]
+    },
+    {
+      "id": "solution.create_external_network",
+      "type": "solution",
+      "label": "Create the external network first",
+      "description": "Create the Docker network before starting Compose or let Compose manage it.",
+      "keywords": [
+        "docker network create",
+        "external",
+        "network"
+      ]
+    },
+    {
+      "id": "component.env_precedence",
+      "type": "component",
+      "label": "Compose environment precedence",
+      "description": "Rules that decide which runtime environment value is used when multiple sources define it.",
+      "keywords": [
+        "precedence",
+        "environment",
+        "env_file",
+        "image ENV",
+        "run -e"
+      ]
+    },
+    {
+      "id": "cause.value_overridden",
+      "type": "cause",
+      "label": "Environment value is overridden",
+      "description": "A higher-precedence source overrides the value the user expected.",
+      "keywords": [
+        "overridden",
+        "precedence",
+        "shell",
+        "env_file",
+        "environment"
+      ]
+    },
+    {
+      "id": "solution.inspect_resolved_env",
+      "type": "solution",
+      "label": "Inspect resolved Compose environment",
+      "description": "Use docker compose config and inspect runtime variables to identify the effective value.",
+      "keywords": [
+        "docker compose config",
+        "inspect environment",
+        "resolved"
+      ]
+    },
+    {
+      "id": "problem.unexpected_project_name",
+      "type": "problem",
+      "label": "Unexpected Compose project name",
+      "description": "Compose creates containers or networks with an unexpected prefix.",
+      "keywords": [
+        "project name",
+        "COMPOSE_PROJECT_NAME",
+        "-p",
+        "prefix",
+        "network name"
+      ]
+    },
+    {
+      "id": "component.compose_project_name",
+      "type": "component",
+      "label": "Compose project name",
+      "description": "Project name controls generated names for Compose resources.",
+      "keywords": [
+        "project name",
+        "COMPOSE_PROJECT_NAME",
+        "-p",
+        "name"
+      ]
+    },
+    {
+      "id": "solution.set_project_name",
+      "type": "solution",
+      "label": "Set project name explicitly",
+      "description": "Use -p, COMPOSE_PROJECT_NAME, or top-level name consistently.",
+      "keywords": [
+        "set project name",
+        "COMPOSE_PROJECT_NAME",
+        "-p",
+        "name"
+      ]
+    },
+    {
+      "id": "problem.wrong_compose_file",
+      "type": "problem",
+      "label": "Compose uses a different file",
+      "description": "Compose appears to use another Compose file or merged configuration.",
+      "keywords": [
+        "COMPOSE_FILE",
+        "-f",
+        "wrong file",
+        "compose.yaml",
+        "project directory"
+      ]
+    },
+    {
+      "id": "component.compose_file_discovery",
+      "type": "component",
+      "label": "Compose file discovery",
+      "description": "Compose locates and merges configuration files based on command line and environment.",
+      "keywords": [
+        "COMPOSE_FILE",
+        "-f",
+        "project directory",
+        "compose config"
+      ]
+    },
+    {
+      "id": "solution.make_compose_file_explicit",
+      "type": "solution",
+      "label": "Make Compose file explicit",
+      "description": "Check COMPOSE_FILE and -f, then use docker compose config to inspect the final model.",
+      "keywords": [
+        "COMPOSE_FILE",
+        "-f",
+        "docker compose config",
+        "explicit"
+      ]
+    },
+    {
+      "id": "problem.profile_service_inactive",
+      "type": "problem",
+      "label": "Compose service profile is inactive",
+      "description": "A service does not start because its Compose profile is not enabled.",
+      "keywords": [
+        "profiles",
+        "COMPOSE_PROFILES",
+        "--profile",
+        "not started"
+      ]
+    },
+    {
+      "id": "component.compose_profiles",
+      "type": "component",
+      "label": "Compose profiles",
+      "description": "Profiles allow services to be included only when selected.",
+      "keywords": [
+        "profiles",
+        "COMPOSE_PROFILES",
+        "--profile"
+      ]
+    },
+    {
+      "id": "solution.enable_profile",
+      "type": "solution",
+      "label": "Enable the required profile",
+      "description": "Start Compose with the required profile or remove the profile if the service should always run.",
+      "keywords": [
+        "enable profile",
+        "--profile",
+        "COMPOSE_PROFILES"
+      ]
+    },
+    {
+      "id": "problem.database_not_ready",
+      "type": "problem",
+      "label": "Application starts before database is ready",
+      "description": "The dependent application starts while the database container is not yet ready.",
+      "keywords": [
+        "database ready",
+        "startup order",
+        "depends_on",
+        "healthcheck",
+        "service_healthy"
+      ]
+    },
+    {
+      "id": "component.startup_order",
+      "type": "component",
+      "label": "Compose startup order",
+      "description": "Compose can create services in dependency order and wait for health conditions.",
+      "keywords": [
+        "startup order",
+        "depends_on",
+        "service_started",
+        "service_healthy"
+      ]
+    },
+    {
+      "id": "cause.depends_on_not_health",
+      "type": "cause",
+      "label": "depends_on does not guarantee readiness",
+      "description": "A service may be started but not yet healthy or ready to accept connections.",
+      "keywords": [
+        "depends_on",
+        "not ready",
+        "started",
+        "healthy"
+      ]
+    },
+    {
+      "id": "solution.use_healthcheck_depends_on",
+      "type": "solution",
+      "label": "Use healthcheck with service_healthy",
+      "description": "Configure a healthcheck and depends_on with condition service_healthy for readiness-sensitive dependencies.",
+      "keywords": [
+        "healthcheck",
+        "service_healthy",
+        "depends_on",
+        "readiness"
+      ]
+    },
+    {
+      "id": "problem.unhealthy_container",
+      "type": "problem",
+      "label": "Container is marked unhealthy",
+      "description": "The process still runs, but Docker marks the container as unhealthy.",
+      "keywords": [
+        "unhealthy",
+        "healthcheck",
+        "running",
+        "timeout",
+        "retries"
+      ]
+    },
+    {
+      "id": "component.healthcheck",
+      "type": "component",
+      "label": "Docker healthcheck",
+      "description": "Command that checks whether a container should be considered healthy.",
+      "keywords": [
+        "healthcheck",
+        "CMD",
+        "CMD-SHELL",
+        "interval",
+        "timeout",
+        "retries"
+      ]
+    },
+    {
+      "id": "cause.bad_healthcheck_signal",
+      "type": "cause",
+      "label": "Healthcheck tests the wrong signal",
+      "description": "The check may call the wrong endpoint, port, command, or use unsuitable timing.",
+      "keywords": [
+        "wrong endpoint",
+        "wrong port",
+        "timeout",
+        "retries",
+        "start period"
+      ]
+    },
+    {
+      "id": "solution.fix_healthcheck",
+      "type": "solution",
+      "label": "Fix healthcheck command and timing",
+      "description": "Adjust the command, endpoint, port, timeout, retries, and start period to match real readiness.",
+      "keywords": [
+        "fix healthcheck",
+        "endpoint",
+        "timeout",
+        "retries",
+        "start period"
+      ]
+    },
+    {
+      "id": "problem.bind_or_volume_confusion",
+      "type": "problem",
+      "label": "Bind mount or volume choice is unclear",
+      "description": "The user is unsure whether a bind mount or a Docker volume fits the use case.",
+      "keywords": [
+        "bind mount",
+        "volume",
+        "host files",
+        "persistent"
+      ]
+    },
+    {
+      "id": "component.bind_mount",
+      "type": "component",
+      "label": "Bind mount",
+      "description": "A mount that links a host path directly into a container.",
+      "keywords": [
+        "bind mount",
+        "host path",
+        "host",
+        "container"
+      ]
+    },
+    {
+      "id": "solution.choose_bind_or_volume",
+      "type": "solution",
+      "label": "Choose bind mount or volume by access need",
+      "description": "Use bind mounts for direct host access and volumes for Docker-managed persistent data.",
+      "keywords": [
+        "bind mount",
+        "volume",
+        "host access",
+        "Docker-managed"
+      ]
+    },
+    {
+      "id": "problem.files_hidden_by_mount",
+      "type": "problem",
+      "label": "Existing image files hidden by mount",
+      "description": "Files from the image seem to disappear because a mount covers the same path.",
+      "keywords": [
+        "hidden files",
+        "mount target",
+        "existing data",
+        "volume"
+      ]
+    },
+    {
+      "id": "cause.mount_over_existing_data",
+      "type": "cause",
+      "label": "Mount covers existing container path",
+      "description": "A volume mounted over a non-empty path hides the files already present there.",
+      "keywords": [
+        "mount over",
+        "existing data",
+        "hidden",
+        "same path"
+      ]
+    },
+    {
+      "id": "solution.avoid_mount_over_existing_path",
+      "type": "solution",
+      "label": "Avoid mounting over required image files",
+      "description": "Use a different target path or initialize the mounted storage deliberately.",
+      "keywords": [
+        "different path",
+        "initialize volume",
+        "mount target"
+      ]
+    },
+    {
+      "id": "problem.tmpfs_data_lost",
+      "type": "problem",
+      "label": "tmpfs data does not persist",
+      "description": "Data stored in tmpfs disappears after restart because tmpfs is temporary memory-backed storage.",
+      "keywords": [
+        "tmpfs",
+        "not persistent",
+        "temporary",
+        "memory"
+      ]
+    },
+    {
+      "id": "component.tmpfs",
+      "type": "component",
+      "label": "tmpfs mount",
+      "description": "Temporary memory-backed mount that does not persist data.",
+      "keywords": [
+        "tmpfs",
+        "memory",
+        "temporary",
+        "ephemeral"
+      ]
+    },
+    {
+      "id": "cause.tmpfs_ephemeral",
+      "type": "cause",
+      "label": "tmpfs is ephemeral",
+      "description": "tmpfs is designed for temporary data and is not persistent.",
+      "keywords": [
+        "ephemeral",
+        "temporary",
+        "not persistent",
+        "restart"
+      ]
+    },
+    {
+      "id": "problem.external_dns_fails",
+      "type": "problem",
+      "label": "External DNS fails inside container",
+      "description": "Service names may work, but public domain names cannot be resolved from a container.",
+      "keywords": [
+        "external DNS",
+        "domain names",
+        "resolver",
+        "daemon DNS"
+      ]
+    },
+    {
+      "id": "cause.daemon_dns_bad",
+      "type": "cause",
+      "label": "Docker daemon DNS configuration is unsuitable",
+      "description": "The container resolver path may need daemon-level DNS configuration.",
+      "keywords": [
+        "daemon DNS",
+        "resolver",
+        "dns servers",
+        "external domains"
+      ]
+    },
+    {
+      "id": "solution.configure_daemon_dns",
+      "type": "solution",
+      "label": "Configure suitable DNS servers for Docker",
+      "description": "For external DNS failures, configure DNS servers for the Docker daemon.",
+      "keywords": [
+        "configure DNS",
+        "dns servers",
+        "daemon"
+      ]
+    },
+    {
+      "id": "diagnosis.docker_info",
+      "type": "diagnosis",
+      "label": "Run docker info",
+      "description": "Check whether the Docker client can communicate with the configured Docker daemon.",
+      "keywords": [
+        "docker info",
+        "daemon",
+        "client",
+        "DOCKER_HOST",
+        "connectivity"
+      ]
+    },
+    {
+      "id": "diagnosis.compose_config",
+      "type": "diagnosis",
+      "label": "Inspect resolved Compose configuration",
+      "description": "Use docker compose config to see the final Compose model after file selection, interpolation and merges.",
+      "keywords": [
+        "docker compose config",
+        "resolved",
+        "compose file",
+        "configuration"
+      ]
+    },
+    {
+      "id": "diagnosis.compose_config_environment",
+      "type": "diagnosis",
+      "label": "Inspect Compose interpolation environment",
+      "description": "Use docker compose config --environment to inspect values used for Compose interpolation.",
+      "keywords": [
+        "docker compose config --environment",
+        ".env",
+        "interpolation",
+        "environment values",
+        "uses for interpolation",
+        "check environment values"
+      ]
+    },
+    {
+      "id": "diagnosis.network_inspect",
+      "type": "diagnosis",
+      "label": "Inspect Docker network membership",
+      "description": "Check whether the relevant services are attached to the same Docker network.",
+      "keywords": [
+        "docker network inspect",
+        "network membership",
+        "same network",
+        "connectivity"
+      ]
+    },
+    {
+      "id": "diagnosis.container_environment",
+      "type": "diagnosis",
+      "label": "Inspect runtime container environment",
+      "description": "Inspect the environment variables that are actually visible inside the running container.",
+      "keywords": [
+        "container environment",
+        "runtime environment",
+        "printenv",
+        "env"
+      ]
+    },
+    {
+      "id": "diagnosis.healthcheck_logs",
+      "type": "diagnosis",
+      "label": "Inspect healthcheck and logs",
+      "description": "Check the configured healthcheck, container logs and healthcheck output.",
+      "keywords": [
+        "healthcheck",
+        "logs",
+        "endpoint",
+        "timeout",
+        "retries"
+      ]
+    },
+    {
+      "id": "diagnosis.mounts",
+      "type": "diagnosis",
+      "label": "Inspect mounts and volumes",
+      "description": "Inspect configured mounts, target paths and Docker volumes.",
+      "keywords": [
+        "mounts",
+        "volume",
+        "bind mount",
+        "docker inspect",
+        "target path"
+      ]
+    },
+    {
+      "id": "diagnosis.compose_profiles",
+      "type": "diagnosis",
+      "label": "Inspect Compose profiles",
+      "description": "Check whether a service is assigned to a profile and whether that profile is enabled.",
+      "keywords": [
+        "profiles",
+        "COMPOSE_PROFILES",
+        "--profile",
+        "inactive"
+      ]
+    },
+    {
+      "id": "document.docker_daemon_troubleshoot",
+      "type": "document",
+      "label": "Docker Docs: daemon troubleshooting",
+      "description": "Official Docker documentation page about debugging Docker daemon issues.",
+      "keywords": [
+        "daemon",
+        "DOCKER_HOST",
+        "docker info",
+        "dns",
+        "troubleshooting"
+      ]
+    },
+    {
+      "id": "document.compose_networking",
+      "type": "document",
+      "label": "Docker Docs: Compose networking",
+      "description": "Official Docker documentation page about Compose networks, service discovery, ports, external networks and connectivity debugging.",
+      "keywords": [
+        "compose",
+        "networking",
+        "service name",
+        "host port",
+        "container port",
+        "external network",
+        "extra_hosts"
+      ]
+    },
+    {
+      "id": "document.compose_startup_order",
+      "type": "document",
+      "label": "Docker Docs: Compose startup order",
+      "description": "Official Docker documentation page about depends_on, healthcheck and service readiness.",
+      "keywords": [
+        "depends_on",
+        "healthcheck",
+        "service_healthy",
+        "startup order",
+        "readiness"
+      ]
+    },
+    {
+      "id": "document.compose_env_interpolation",
+      "type": "document",
+      "label": "Docker Docs: variable interpolation",
+      "description": "Official Docker documentation page about interpolation syntax, .env files and docker compose config --environment.",
+      "keywords": [
+        "interpolation",
+        ".env",
+        "env-file",
+        "docker compose config --environment",
+        "required variable"
+      ]
+    },
+    {
+      "id": "document.compose_env_precedence",
+      "type": "document",
+      "label": "Docker Docs: environment precedence",
+      "description": "Official Docker documentation page about precedence of CLI, environment, env_file and image ENV values.",
+      "keywords": [
+        "precedence",
+        "environment",
+        "env_file",
+        "docker compose run -e",
+        "image ENV"
+      ]
+    },
+    {
+      "id": "document.compose_predefined_env",
+      "type": "document",
+      "label": "Docker Docs: predefined Compose variables",
+      "description": "Official Docker documentation page about COMPOSE_PROJECT_NAME, COMPOSE_FILE and COMPOSE_PROFILES.",
+      "keywords": [
+        "COMPOSE_PROJECT_NAME",
+        "COMPOSE_FILE",
+        "COMPOSE_PROFILES",
+        "project directory"
+      ]
+    },
+    {
+      "id": "document.storage_volumes",
+      "type": "document",
+      "label": "Docker Docs: volumes",
+      "description": "Official Docker documentation page about persistent volumes, lifecycle and mounting over existing data.",
+      "keywords": [
+        "volume",
+        "persistent",
+        "mount",
+        "bind mount",
+        "tmpfs",
+        "existing data"
+      ]
+    },
+    {
+      "id": "document.compose_services_reference",
+      "type": "document",
+      "label": "Docker Docs: Compose services reference",
+      "description": "Official Compose reference for service attributes such as depends_on, healthcheck, extra_hosts, profiles, ports and network_mode.",
+      "keywords": [
+        "services",
+        "depends_on",
+        "healthcheck",
+        "extra_hosts",
+        "profiles",
+        "ports",
+        "network_mode"
+      ]
+    },
+    {
+      "id": "component.network_mode",
+      "type": "component",
+      "label": "Compose network_mode",
+      "description": "Service setting that changes how a container uses networking, including host networking or sharing another service network namespace.",
+      "keywords": [
+        "network_mode",
+        "host",
+        "service",
+        "container networking"
+      ]
+    },
+    {
+      "id": "problem.host_network_no_service_dns",
+      "type": "problem",
+      "label": "Service DNS fails with host network mode",
+      "description": "A service using host network mode does not get the normal Compose service-name DNS behavior.",
+      "keywords": [
+        "network_mode host",
+        "service name",
+        "dns",
+        "ports",
+        "host network"
+      ]
+    },
+    {
+      "id": "cause.host_network_bypasses_compose_dns",
+      "type": "cause",
+      "label": "Host network bypasses Compose DNS",
+      "description": "Host network mode shares the host networking stack and does not use the normal Compose bridge network service discovery.",
+      "keywords": [
+        "host network",
+        "bridge network",
+        "service discovery",
+        "no port mapping"
+      ]
+    },
+    {
+      "id": "solution.use_bridge_or_explicit_host_access",
+      "type": "solution",
+      "label": "Use bridge network or explicit host access",
+      "description": "Keep services on a Compose bridge network for service discovery, or use explicit host access only when host networking is required.",
+      "keywords": [
+        "bridge network",
+        "service name",
+        "host.docker.internal",
+        "host-gateway"
+      ]
+    },
+    {
+      "id": "diagnosis.compose_network_mode",
+      "type": "diagnosis",
+      "label": "Inspect network_mode",
+      "description": "Check whether a service uses network_mode and whether that changes expected Compose DNS or port behavior.",
+      "keywords": [
+        "network_mode",
+        "docker compose config",
+        "host"
+      ]
+    },
+    {
+      "id": "problem.container_ip_changed",
+      "type": "problem",
+      "label": "Connection uses old container IP",
+      "description": "A connection fails after Compose recreates a service because the old container IP address changed.",
+      "keywords": [
+        "old IP",
+        "container recreated",
+        "dynamic IP",
+        "service name"
+      ]
+    },
+    {
+      "id": "cause.dynamic_container_ip",
+      "type": "cause",
+      "label": "Container IP is dynamic",
+      "description": "Compose service names stay stable, but container IP addresses can change when containers are recreated.",
+      "keywords": [
+        "dynamic IP",
+        "service name stable",
+        "recreate",
+        "restart"
+      ]
+    },
+    {
+      "id": "solution.reconnect_by_service_name",
+      "type": "solution",
+      "label": "Reconnect using service name",
+      "description": "Use the service name instead of fixed IP addresses and make the application reconnect after old connections close.",
+      "keywords": [
+        "service name",
+        "reconnect",
+        "avoid fixed IP",
+        "new IP"
+      ]
+    },
+    {
+      "id": "problem.scaled_service_port_ambiguous",
+      "type": "problem",
+      "label": "Scaled service has multiple host ports",
+      "description": "A scaled Compose service may expose different dynamic host ports per replica.",
+      "keywords": [
+        "scale",
+        "replica",
+        "dynamic host port",
+        "docker compose port --index"
+      ]
+    },
+    {
+      "id": "cause.replica_dynamic_host_ports",
+      "type": "cause",
+      "label": "Each replica has its own host port",
+      "description": "When a service is scaled and host ports are dynamic, each replica can receive a different published host port.",
+      "keywords": [
+        "replica",
+        "dynamic port",
+        "host port",
+        "index"
+      ]
+    },
+    {
+      "id": "solution.inspect_port_with_index",
+      "type": "solution",
+      "label": "Inspect host port with --index",
+      "description": "Use docker compose port with --index to identify the published host port for a specific replica.",
+      "keywords": [
+        "docker compose port",
+        "--index",
+        "host port",
+        "replica"
+      ]
+    },
+    {
+      "id": "diagnosis.compose_port",
+      "type": "diagnosis",
+      "label": "Run docker compose port",
+      "description": "Inspect which host port maps to a service container port, including a specific replica index when scaled.",
+      "keywords": [
+        "docker compose port",
+        "host port",
+        "container port",
+        "--index"
+      ]
+    },
+    {
+      "id": "component.internal_network",
+      "type": "component",
+      "label": "Compose internal network",
+      "description": "A Compose network marked as internal has no default external connectivity.",
+      "keywords": [
+        "internal network",
+        "internal: true",
+        "gateway",
+        "internet"
+      ]
+    },
+    {
+      "id": "problem.internal_network_no_internet",
+      "type": "problem",
+      "label": "Service on internal network cannot reach internet",
+      "description": "A service attached only to an internal Compose network cannot reach external network targets.",
+      "keywords": [
+        "internal network",
+        "internet",
+        "no gateway",
+        "external connectivity"
+      ]
+    },
+    {
+      "id": "cause.internal_network_no_gateway",
+      "type": "cause",
+      "label": "Internal network has no external gateway",
+      "description": "An internal Compose network is isolated from external connectivity and has no default gateway to the outside.",
+      "keywords": [
+        "internal: true",
+        "no gateway",
+        "isolated",
+        "external connectivity"
+      ]
+    },
+    {
+      "id": "solution.attach_service_to_public_network",
+      "type": "solution",
+      "label": "Attach service to a non-internal network",
+      "description": "Attach the service that needs internet access to a non-internal network while keeping private services isolated.",
+      "keywords": [
+        "public network",
+        "non-internal",
+        "multiple networks",
+        "isolation"
+      ]
+    },
+    {
+      "id": "component.extra_hosts",
+      "type": "component",
+      "label": "Compose extra_hosts",
+      "description": "Service attribute that writes custom hostname mappings into a container hosts file.",
+      "keywords": [
+        "extra_hosts",
+        "host-gateway",
+        "host.docker.internal",
+        "/etc/hosts"
+      ]
+    },
+    {
+      "id": "problem.custom_hostname_unresolved",
+      "type": "problem",
+      "label": "Custom hostname cannot be resolved",
+      "description": "A container cannot resolve a custom host name that is not registered by Compose internal DNS.",
+      "keywords": [
+        "custom hostname",
+        "extra_hosts",
+        "host.docker.internal",
+        "host-gateway"
+      ]
+    },
+    {
+      "id": "cause.hostname_not_registered_in_dns",
+      "type": "cause",
+      "label": "Hostname is not registered in Docker DNS",
+      "description": "Compose DNS knows service names on the network, but not arbitrary external or custom names unless configured.",
+      "keywords": [
+        "custom hostname",
+        "not in DNS",
+        "service name",
+        "extra_hosts"
+      ]
+    },
+    {
+      "id": "solution.add_extra_hosts_mapping",
+      "type": "solution",
+      "label": "Add extra_hosts mapping",
+      "description": "Add an extra_hosts entry, for example with host-gateway, when a custom name should resolve inside a container.",
+      "keywords": [
+        "extra_hosts",
+        "host-gateway",
+        "host.docker.internal",
+        "/etc/hosts"
+      ]
+    },
+    {
+      "id": "diagnosis.inspect_hosts_file",
+      "type": "diagnosis",
+      "label": "Inspect container hosts file",
+      "description": "Inspect /etc/hosts inside the container to verify custom mappings created by extra_hosts.",
+      "keywords": [
+        "/etc/hosts",
+        "docker compose exec",
+        "extra_hosts"
+      ]
+    },
+    {
+      "id": "component.runtime_container_environment",
+      "type": "component",
+      "label": "Runtime container environment",
+      "description": "Environment variables visible to the process running inside the container.",
+      "keywords": [
+        "runtime environment",
+        "container environment",
+        "env_file",
+        "environment"
+      ]
+    },
+    {
+      "id": "problem.required_interpolation_missing",
+      "type": "problem",
+      "label": "Required interpolation variable missing",
+      "description": "Compose stops because a variable expression marks a value as required but the variable is not set.",
+      "keywords": [
+        "required variable",
+        "${VAR:?error}",
+        "interpolation",
+        "missing"
+      ]
+    },
+    {
+      "id": "cause.required_variable_not_set",
+      "type": "cause",
+      "label": "Required variable is not set",
+      "description": "A required interpolation expression fails before the final Compose model is created.",
+      "keywords": [
+        "required",
+        "not set",
+        "interpolation",
+        ".env"
+      ]
+    },
+    {
+      "id": "solution.set_required_variable_or_default",
+      "type": "solution",
+      "label": "Set required variable or define default",
+      "description": "Set the required variable through the shell or env file, or use an interpolation default if that is intended.",
+      "keywords": [
+        "set variable",
+        "default value",
+        "${VAR:-default}",
+        "env-file"
+      ]
+    },
+    {
+      "id": "document.compose_volumes_reference",
+      "type": "document",
+      "label": "Docker Docs: Compose volumes reference",
+      "description": "Official Compose reference for declaring reusable named volumes and external volumes.",
+      "keywords": [
+        "compose volumes",
+        "top-level volumes",
+        "external volume",
+        "named volume",
+        "reusable volume"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "problem.daemon_unreachable",
+      "relation": "affects",
+      "target": "component.docker_daemon",
+      "evidence": "The Docker client needs a reachable Docker daemon before Docker commands can work.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.daemon_unreachable",
+      "relation": "may_be_caused_by",
+      "target": "cause.daemon_not_running",
+      "evidence": "A common cause is that the local Docker daemon is stopped.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.daemon_unreachable",
+      "relation": "may_be_caused_by",
+      "target": "cause.wrong_docker_host",
+      "evidence": "The Docker client can be configured through DOCKER_HOST to connect to another host.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "cause.daemon_not_running",
+      "relation": "solved_by",
+      "target": "solution.start_docker_service",
+      "evidence": "If the daemon is stopped, start the Docker service and retry the command.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "cause.wrong_docker_host",
+      "relation": "solved_by",
+      "target": "solution.start_docker_service",
+      "evidence": "If DOCKER_HOST points to a remote daemon, verify the remote service and network path.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.service_name_unreachable",
+      "relation": "affects",
+      "target": "component.compose_default_network",
+      "evidence": "Compose service discovery depends on services sharing a Docker network.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.service_name_unreachable",
+      "relation": "may_be_caused_by",
+      "target": "cause.not_same_network",
+      "evidence": "A service name is reachable only when the communicating containers share a network.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "problem.service_name_unreachable",
+      "relation": "may_be_caused_by",
+      "target": "cause.wrong_port_context",
+      "evidence": "Inside Compose, a service should use the target container port, not the published host port.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "cause.not_same_network",
+      "relation": "solved_by",
+      "target": "solution.use_service_name_container_port",
+      "evidence": "Attach the services to a shared network and connect with service name plus container port.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "cause.wrong_port_context",
+      "relation": "solved_by",
+      "target": "solution.use_service_name_container_port",
+      "evidence": "Use the host port from outside Docker and the container port from another service.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "affects",
+      "target": "component.compose_interpolation",
+      "evidence": "Compose interpolation and container runtime environment are related but not identical.",
+      "source_ids": [
+        "docker-compose-env",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "may_be_caused_by",
+      "target": "cause.interpolation_not_runtime_env",
+      "evidence": "A value substituted into the Compose file is not automatically visible to the application.",
+      "source_ids": [
+        "docker-compose-env",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "cause.interpolation_not_runtime_env",
+      "relation": "solved_by",
+      "target": "solution.define_service_environment",
+      "evidence": "Variables required by the application should be defined in the service environment.",
+      "source_ids": [
+        "docker-compose-env"
+      ]
+    },
+    {
+      "source": "problem.data_not_persistent",
+      "relation": "affects",
+      "target": "component.docker_volume",
+      "evidence": "Persistent data should be stored in a volume or bind mount, not only in the container layer.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.data_not_persistent",
+      "relation": "may_be_caused_by",
+      "target": "cause.no_persistent_mount",
+      "evidence": "Data in the container writable layer can disappear when the container is removed.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "cause.no_persistent_mount",
+      "relation": "solved_by",
+      "target": "solution.use_named_volume",
+      "evidence": "Use a named volume or bind mount at the data directory.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.external_network_missing",
+      "relation": "solved_by",
+      "target": "solution.create_external_network",
+      "evidence": "An external Compose network must exist before Compose can attach services to it.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "may_be_caused_by",
+      "target": "cause.value_overridden",
+      "evidence": "A runtime environment variable can be overridden by a higher-precedence source.",
+      "source_ids": [
+        "docker-compose-env-precedence"
+      ]
+    },
+    {
+      "source": "cause.value_overridden",
+      "relation": "affects",
+      "target": "component.env_precedence",
+      "evidence": "Compose applies precedence rules across CLI flags, environment, env_file, and image ENV.",
+      "source_ids": [
+        "docker-compose-env-precedence"
+      ]
+    },
+    {
+      "source": "cause.value_overridden",
+      "relation": "solved_by",
+      "target": "solution.inspect_resolved_env",
+      "evidence": "Inspect the resolved Compose model and the runtime container environment to locate the active value.",
+      "source_ids": [
+        "docker-compose-env-precedence",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.unexpected_project_name",
+      "relation": "affects",
+      "target": "component.compose_project_name",
+      "evidence": "The project name controls generated Compose container and network name prefixes.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.unexpected_project_name",
+      "relation": "solved_by",
+      "target": "solution.set_project_name",
+      "evidence": "Set the project name deliberately with -p, COMPOSE_PROJECT_NAME, or top-level name.",
+      "source_ids": [
+        "docker-compose-predefined-env"
+      ]
+    },
+    {
+      "source": "problem.wrong_compose_file",
+      "relation": "affects",
+      "target": "component.compose_file_discovery",
+      "evidence": "Compose file selection can be influenced by -f, COMPOSE_FILE, working directory, and merged files.",
+      "source_ids": [
+        "docker-compose-predefined-env"
+      ]
+    },
+    {
+      "source": "problem.wrong_compose_file",
+      "relation": "solved_by",
+      "target": "solution.make_compose_file_explicit",
+      "evidence": "Check COMPOSE_FILE and -f, then use docker compose config to inspect the final configuration.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.profile_service_inactive",
+      "relation": "affects",
+      "target": "component.compose_profiles",
+      "evidence": "A service assigned to a Compose profile starts only when that profile is enabled.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.profile_service_inactive",
+      "relation": "solved_by",
+      "target": "solution.enable_profile",
+      "evidence": "Enable the required profile with --profile or COMPOSE_PROFILES, or remove the profile restriction.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.database_not_ready",
+      "relation": "affects",
+      "target": "component.startup_order",
+      "evidence": "Compose startup order and readiness conditions influence whether dependent services can connect.",
+      "source_ids": [
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "problem.database_not_ready",
+      "relation": "may_be_caused_by",
+      "target": "cause.depends_on_not_health",
+      "evidence": "A dependency can be started but not yet healthy or ready to accept connections.",
+      "source_ids": [
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "cause.depends_on_not_health",
+      "relation": "solved_by",
+      "target": "solution.use_healthcheck_depends_on",
+      "evidence": "Use a healthcheck and condition service_healthy when a dependent service must wait for readiness.",
+      "source_ids": [
+        "docker-compose-startup-order",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.unhealthy_container",
+      "relation": "affects",
+      "target": "component.healthcheck",
+      "evidence": "A container can run while its configured healthcheck reports an unhealthy status.",
+      "source_ids": [
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.unhealthy_container",
+      "relation": "may_be_caused_by",
+      "target": "cause.bad_healthcheck_signal",
+      "evidence": "The healthcheck may test the wrong endpoint, wrong port, or use unsuitable timing.",
+      "source_ids": [
+        "docker-compose-services-reference",
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "cause.bad_healthcheck_signal",
+      "relation": "solved_by",
+      "target": "solution.fix_healthcheck",
+      "evidence": "Adjust the healthcheck command and timing to represent the service's real readiness.",
+      "source_ids": [
+        "docker-compose-services-reference",
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "problem.bind_or_volume_confusion",
+      "relation": "affects",
+      "target": "component.bind_mount",
+      "evidence": "Bind mounts expose host paths directly to containers, unlike Docker-managed volumes.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.bind_or_volume_confusion",
+      "relation": "affects",
+      "target": "component.docker_volume",
+      "evidence": "Volumes are Docker-managed persistent data stores.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.bind_or_volume_confusion",
+      "relation": "solved_by",
+      "target": "solution.choose_bind_or_volume",
+      "evidence": "Use bind mounts for direct host access and volumes for Docker-managed persistence.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.files_hidden_by_mount",
+      "relation": "may_be_caused_by",
+      "target": "cause.mount_over_existing_data",
+      "evidence": "Mounting a volume over an existing path can hide files that were present in the image.",
+      "source_ids": [
+        "docker-storage-volumes",
+        "docker-storage-overview"
+      ]
+    },
+    {
+      "source": "cause.mount_over_existing_data",
+      "relation": "solved_by",
+      "target": "solution.avoid_mount_over_existing_path",
+      "evidence": "Avoid mounting over required image files or initialize the mounted storage intentionally.",
+      "source_ids": [
+        "docker-storage-volumes",
+        "docker-storage-overview"
+      ]
+    },
+    {
+      "source": "problem.tmpfs_data_lost",
+      "relation": "affects",
+      "target": "component.tmpfs",
+      "evidence": "tmpfs is temporary memory-backed storage.",
+      "source_ids": [
+        "docker-storage-overview"
+      ]
+    },
+    {
+      "source": "problem.tmpfs_data_lost",
+      "relation": "may_be_caused_by",
+      "target": "cause.tmpfs_ephemeral",
+      "evidence": "tmpfs data is not persistent and can disappear after restart.",
+      "source_ids": [
+        "docker-storage-overview"
+      ]
+    },
+    {
+      "source": "cause.tmpfs_ephemeral",
+      "relation": "solved_by",
+      "target": "solution.use_named_volume",
+      "evidence": "Use a persistent volume or bind mount when data must survive restarts.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.external_dns_fails",
+      "relation": "may_be_caused_by",
+      "target": "cause.daemon_dns_bad",
+      "evidence": "External DNS failures can require daemon-level DNS configuration.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "cause.daemon_dns_bad",
+      "relation": "solved_by",
+      "target": "solution.configure_daemon_dns",
+      "evidence": "Configure suitable DNS servers for the Docker daemon when external resolution fails.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.daemon_unreachable",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.docker_info",
+      "evidence": "Use docker info and DOCKER_HOST checks to verify whether the Docker client reaches the intended daemon.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.service_name_unreachable",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.network_inspect",
+      "evidence": "Inspect network membership to confirm that both Compose services share a network.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "cause.wrong_port_context",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config",
+      "evidence": "Inspect the resolved Compose configuration to distinguish host ports from container ports.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config_environment",
+      "evidence": "Use docker compose config --environment to inspect interpolation values from environment sources.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.container_environment",
+      "evidence": "Inspect the runtime container environment to check which variables the application can actually read.",
+      "source_ids": [
+        "docker-compose-env"
+      ]
+    },
+    {
+      "source": "cause.value_overridden",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config",
+      "evidence": "The resolved Compose model helps identify which configuration source supplied the active value.",
+      "source_ids": [
+        "docker-compose-env-precedence",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.unexpected_project_name",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config",
+      "evidence": "The resolved Compose model and project settings help explain generated name prefixes.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.wrong_compose_file",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config",
+      "evidence": "The resolved Compose model reveals which Compose file and merged configuration are active.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.profile_service_inactive",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_profiles",
+      "evidence": "Check profiles in the service definition and verify COMPOSE_PROFILES or --profile.",
+      "source_ids": [
+        "docker-compose-predefined-env",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.database_not_ready",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.healthcheck_logs",
+      "evidence": "Healthcheck configuration and logs show whether a dependency is merely started or actually ready.",
+      "source_ids": [
+        "docker-compose-startup-order",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.unhealthy_container",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.healthcheck_logs",
+      "evidence": "Healthcheck output and logs help determine why a running container is marked unhealthy.",
+      "source_ids": [
+        "docker-compose-services-reference",
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "problem.data_not_persistent",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.mounts",
+      "evidence": "Mount inspection shows whether persistent storage is attached to the path used by the application.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.bind_or_volume_confusion",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.mounts",
+      "evidence": "Mount inspection helps decide whether direct host access or Docker-managed storage is needed.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.files_hidden_by_mount",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.mounts",
+      "evidence": "Inspect mount target paths when files from the image appear to be hidden.",
+      "source_ids": [
+        "docker-storage-volumes",
+        "docker-storage-overview"
+      ]
+    },
+    {
+      "source": "problem.external_dns_fails",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.docker_info",
+      "evidence": "Check daemon and resolver configuration when external DNS fails inside containers.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.external_network_missing",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.network_inspect",
+      "evidence": "List and inspect Docker networks to verify whether an external network exists before Compose starts.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "problem.daemon_unreachable",
+      "relation": "documented_in",
+      "target": "document.docker_daemon_troubleshoot",
+      "evidence": "The daemon connection error and DOCKER_HOST checks are described in Docker daemon troubleshooting.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "cause.wrong_docker_host",
+      "relation": "documented_in",
+      "target": "document.docker_daemon_troubleshoot",
+      "evidence": "Docker documents DOCKER_HOST as a way the client may point to another daemon host.",
+      "source_ids": [
+        "docker-daemon-troubleshoot"
+      ]
+    },
+    {
+      "source": "problem.service_name_unreachable",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents service discovery by service name on shared networks.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "cause.wrong_port_context",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking distinguishes host ports from container ports for service-to-service communication.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.env_missing",
+      "relation": "documented_in",
+      "target": "document.compose_env_interpolation",
+      "evidence": "Variable interpolation and .env behavior are documented in the Compose environment variable guide.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "cause.value_overridden",
+      "relation": "documented_in",
+      "target": "document.compose_env_precedence",
+      "evidence": "Compose environment precedence rules explain which value wins when multiple sources define the same variable.",
+      "source_ids": [
+        "docker-compose-env-precedence"
+      ]
+    },
+    {
+      "source": "problem.unexpected_project_name",
+      "relation": "documented_in",
+      "target": "document.compose_predefined_env",
+      "evidence": "Predefined Compose variables document COMPOSE_PROJECT_NAME and project naming precedence.",
+      "source_ids": [
+        "docker-compose-predefined-env"
+      ]
+    },
+    {
+      "source": "problem.wrong_compose_file",
+      "relation": "documented_in",
+      "target": "document.compose_predefined_env",
+      "evidence": "Predefined Compose variables document COMPOSE_FILE and file discovery behavior.",
+      "source_ids": [
+        "docker-compose-predefined-env"
+      ]
+    },
+    {
+      "source": "problem.profile_service_inactive",
+      "relation": "documented_in",
+      "target": "document.compose_predefined_env",
+      "evidence": "Predefined Compose variables document COMPOSE_PROFILES and profile activation.",
+      "source_ids": [
+        "docker-compose-predefined-env"
+      ]
+    },
+    {
+      "source": "problem.database_not_ready",
+      "relation": "documented_in",
+      "target": "document.compose_startup_order",
+      "evidence": "Docker documents that startup order does not always mean readiness unless a health condition is used.",
+      "source_ids": [
+        "docker-compose-startup-order"
+      ]
+    },
+    {
+      "source": "problem.unhealthy_container",
+      "relation": "documented_in",
+      "target": "document.compose_services_reference",
+      "evidence": "The services reference documents healthcheck configuration as a service attribute.",
+      "source_ids": [
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.data_not_persistent",
+      "relation": "documented_in",
+      "target": "document.storage_volumes",
+      "evidence": "Docker volumes documentation explains that volumes persist outside a container lifecycle.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.files_hidden_by_mount",
+      "relation": "documented_in",
+      "target": "document.storage_volumes",
+      "evidence": "Docker volumes documentation explains the effect of mounting over existing container data.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.external_network_missing",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking explains that external networks must exist before Compose uses them.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "solution.use_service_name_container_port",
+      "relation": "requires",
+      "target": "component.compose_default_network",
+      "evidence": "Service-name connectivity requires that the services share a Compose network.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "solution.use_healthcheck_depends_on",
+      "relation": "requires",
+      "target": "component.healthcheck",
+      "evidence": "The service_healthy condition requires a healthcheck that defines readiness.",
+      "source_ids": [
+        "docker-compose-startup-order",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "solution.inspect_resolved_env",
+      "relation": "requires",
+      "target": "diagnosis.compose_config_environment",
+      "evidence": "docker compose config --environment shows which values are used for interpolation.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "component.compose_interpolation",
+      "relation": "distinguished_from",
+      "target": "component.runtime_container_environment",
+      "evidence": "Interpolation values used while building the Compose model are not automatically the runtime variables inside a container.",
+      "source_ids": [
+        "docker-compose-env-interpolation",
+        "docker-compose-env"
+      ]
+    },
+    {
+      "source": "cause.interpolation_not_runtime_env",
+      "relation": "affects",
+      "target": "component.runtime_container_environment",
+      "evidence": "An application can miss a variable when the value was only used for interpolation and not passed to the container.",
+      "source_ids": [
+        "docker-compose-env-interpolation",
+        "docker-compose-env"
+      ]
+    },
+    {
+      "source": "solution.define_service_environment",
+      "relation": "requires",
+      "target": "component.runtime_container_environment",
+      "evidence": "A variable needed by the application must be defined in the container runtime environment.",
+      "source_ids": [
+        "docker-compose-env",
+        "docker-compose-env-precedence"
+      ]
+    },
+    {
+      "source": "cause.value_overridden",
+      "relation": "conflicts_with",
+      "target": "cause.interpolation_not_runtime_env",
+      "evidence": "A wrong value can come either from runtime precedence or from confusing interpolation with runtime variables.",
+      "source_ids": [
+        "docker-compose-env-precedence",
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "solution.create_external_network",
+      "relation": "requires",
+      "target": "component.compose_default_network",
+      "evidence": "An external Compose network must be available before services can attach to it.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-networks-reference"
+      ]
+    },
+    {
+      "source": "solution.use_named_volume",
+      "relation": "requires",
+      "target": "component.docker_volume",
+      "evidence": "Persistent container data requires a persistent mount such as a volume or bind mount.",
+      "source_ids": [
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "solution.choose_bind_or_volume",
+      "relation": "requires",
+      "target": "component.bind_mount",
+      "evidence": "Bind mounts are appropriate when files must be accessed directly from the host.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "solution.choose_bind_or_volume",
+      "relation": "requires",
+      "target": "component.docker_volume",
+      "evidence": "Docker-managed volumes are appropriate for persistent data managed by Docker.",
+      "source_ids": [
+        "docker-storage-overview",
+        "docker-storage-volumes"
+      ]
+    },
+    {
+      "source": "problem.host_network_no_service_dns",
+      "relation": "affects",
+      "target": "component.network_mode",
+      "evidence": "The problem is caused by a network mode that changes normal Compose networking behavior.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.host_network_no_service_dns",
+      "relation": "may_be_caused_by",
+      "target": "cause.host_network_bypasses_compose_dns",
+      "evidence": "Host networking shares the host stack and does not provide normal service-name DNS resolution.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.host_network_no_service_dns",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_network_mode",
+      "evidence": "Inspect the resolved Compose model to see whether network_mode is set.",
+      "source_ids": [
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "cause.host_network_bypasses_compose_dns",
+      "relation": "solved_by",
+      "target": "solution.use_bridge_or_explicit_host_access",
+      "evidence": "Use the normal bridge network for service discovery unless host networking is explicitly required.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "solution.use_bridge_or_explicit_host_access",
+      "relation": "requires",
+      "target": "component.compose_default_network",
+      "evidence": "Service discovery by service name requires normal Compose networking.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.host_network_no_service_dns",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents how network_mode changes networking behavior.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.container_ip_changed",
+      "relation": "affects",
+      "target": "component.compose_default_network",
+      "evidence": "The connection problem appears in Compose service networking after recreation.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.container_ip_changed",
+      "relation": "may_be_caused_by",
+      "target": "cause.dynamic_container_ip",
+      "evidence": "Containers can receive a new IP address when recreated while the service name remains stable.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "cause.dynamic_container_ip",
+      "relation": "solved_by",
+      "target": "solution.reconnect_by_service_name",
+      "evidence": "Applications should use the service name and reconnect when an old connection closes.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.container_ip_changed",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.network_inspect",
+      "evidence": "Inspect network membership and avoid depending on the old container IP.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.container_ip_changed",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents container IP changes after recreation.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.scaled_service_port_ambiguous",
+      "relation": "affects",
+      "target": "component.compose_default_network",
+      "evidence": "Port ambiguity appears when scaled services publish dynamic host ports.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.scaled_service_port_ambiguous",
+      "relation": "may_be_caused_by",
+      "target": "cause.replica_dynamic_host_ports",
+      "evidence": "Each scaled replica can have a different dynamically assigned host port.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.scaled_service_port_ambiguous",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_port",
+      "evidence": "docker compose port with --index can show a specific replica's published host port.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "cause.replica_dynamic_host_ports",
+      "relation": "solved_by",
+      "target": "solution.inspect_port_with_index",
+      "evidence": "Use --index when inspecting the published port of a scaled replica.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "solution.inspect_port_with_index",
+      "relation": "requires",
+      "target": "diagnosis.compose_port",
+      "evidence": "The command output is the evidence for the selected replica's host port.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.scaled_service_port_ambiguous",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents dynamic port inspection and scaled replica indexes.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.internal_network_no_internet",
+      "relation": "affects",
+      "target": "component.internal_network",
+      "evidence": "The service is attached only to an internal network.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.internal_network_no_internet",
+      "relation": "may_be_caused_by",
+      "target": "cause.internal_network_no_gateway",
+      "evidence": "An internal network has no external connectivity gateway.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.internal_network_no_internet",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.network_inspect",
+      "evidence": "Network inspection can show whether the service is attached only to internal networks.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "cause.internal_network_no_gateway",
+      "relation": "solved_by",
+      "target": "solution.attach_service_to_public_network",
+      "evidence": "Attach the service to a non-internal network if it needs external access.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "solution.attach_service_to_public_network",
+      "relation": "requires",
+      "target": "component.internal_network",
+      "evidence": "Keep private services on the internal network while exposing only services that need external access.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.internal_network_no_internet",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents internal networks and hybrid networking.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.custom_hostname_unresolved",
+      "relation": "affects",
+      "target": "component.extra_hosts",
+      "evidence": "The unresolved name is a custom hostname rather than a Compose service name.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.custom_hostname_unresolved",
+      "relation": "may_be_caused_by",
+      "target": "cause.hostname_not_registered_in_dns",
+      "evidence": "Compose internal DNS does not automatically know arbitrary custom hostnames.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.custom_hostname_unresolved",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.inspect_hosts_file",
+      "evidence": "Inspect /etc/hosts to check whether extra_hosts produced the expected mapping.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "cause.hostname_not_registered_in_dns",
+      "relation": "solved_by",
+      "target": "solution.add_extra_hosts_mapping",
+      "evidence": "Add an extra_hosts entry for a custom hostname or host-gateway mapping.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "solution.add_extra_hosts_mapping",
+      "relation": "requires",
+      "target": "component.extra_hosts",
+      "evidence": "The custom hostname is made visible inside the container through extra_hosts.",
+      "source_ids": [
+        "docker-compose-networking",
+        "docker-compose-services-reference"
+      ]
+    },
+    {
+      "source": "problem.custom_hostname_unresolved",
+      "relation": "documented_in",
+      "target": "document.compose_networking",
+      "evidence": "Compose networking documents custom DNS with extra_hosts.",
+      "source_ids": [
+        "docker-compose-networking"
+      ]
+    },
+    {
+      "source": "problem.required_interpolation_missing",
+      "relation": "affects",
+      "target": "component.compose_interpolation",
+      "evidence": "The failure happens while Compose interpolates the Compose model.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.required_interpolation_missing",
+      "relation": "may_be_caused_by",
+      "target": "cause.required_variable_not_set",
+      "evidence": "A required interpolation variable fails when it is unset or empty, depending on the expression.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.required_interpolation_missing",
+      "relation": "diagnosed_by",
+      "target": "diagnosis.compose_config_environment",
+      "evidence": "Inspect interpolation values before running the application.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "cause.required_variable_not_set",
+      "relation": "solved_by",
+      "target": "solution.set_required_variable_or_default",
+      "evidence": "Set the missing variable or define a default interpolation expression.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "solution.set_required_variable_or_default",
+      "relation": "requires",
+      "target": "component.compose_interpolation",
+      "evidence": "Required and default syntax are interpolation features of Compose.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "problem.required_interpolation_missing",
+      "relation": "documented_in",
+      "target": "document.compose_env_interpolation",
+      "evidence": "Compose variable interpolation documents required and default expressions.",
+      "source_ids": [
+        "docker-compose-env-interpolation"
+      ]
+    },
+    {
+      "source": "solution.use_named_volume",
+      "relation": "documented_in",
+      "target": "document.compose_volumes_reference",
+      "evidence": "The Compose volumes reference explains how services can use reusable named volumes.",
+      "source_ids": [
+        "docker-compose-volumes-reference"
+      ]
+    }
+  ]
+};
+    const svg = document.getElementById("graph");
+    const stats = document.getElementById("stats");
+    const search = document.getElementById("search");
+    const typeInputs = Array.from(document.querySelectorAll("input[data-type]"));
+    const detailTitle = document.getElementById("detail-title");
+    const detailType = document.getElementById("detail-type");
+    const detailText = document.getElementById("detail-text");
+    const edgeList = document.getElementById("edge-list");
+
+    const colors = {
+      problem: "var(--problem)",
+      component: "var(--component)",
+      cause: "var(--cause)",
+      diagnosis: "var(--diagnosis)",
+      solution: "var(--solution)",
+      document: "var(--document)"
+    };
+
+    const order = ["problem", "component", "cause", "diagnosis", "solution", "document"];
+    const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
+    let selectedId = graph.nodes[0]?.id || null;
+
+    stats.textContent = `${graph.nodes.length} nodes · ${graph.edges.length} relations`;
+
+    function activeTypes() {
+      return new Set(typeInputs.filter(input => input.checked).map(input => input.dataset.type));
+    }
+
+    function matchesSearch(node) {
+      const query = search.value.trim().toLowerCase();
+      if (!query) return true;
+      const haystack = [
+        node.id,
+        node.type,
+        node.label,
+        node.description,
+        ...(node.keywords || [])
+      ].join(" ").toLowerCase();
+      return haystack.includes(query);
+    }
+
+    function visibleNodeSet() {
+      const types = activeTypes();
+      return new Set(
+        graph.nodes
+          .filter(node => types.has(node.type) && matchesSearch(node))
+          .map(node => node.id)
+      );
+    }
+
+    function layout(width, height, visibleIds) {
+      const grouped = new Map(order.map(type => [type, []]));
+      for (const node of graph.nodes) {
+        if (visibleIds.has(node.id)) grouped.get(node.type)?.push(node);
+      }
+
+      const columns = new Map();
+      const left = 120;
+      const right = Math.max(width - 120, left + 240);
+      const step = (right - left) / Math.max(order.length - 1, 1);
+
+      order.forEach((type, index) => {
+        columns.set(type, left + step * index);
+      });
+
+      const positions = new Map();
+      for (const type of order) {
+        const nodes = grouped.get(type) || [];
+        const gap = height / (nodes.length + 1);
+        nodes.forEach((node, index) => {
+          positions.set(node.id, {
+            x: columns.get(type),
+            y: gap * (index + 1)
+          });
+        });
+      }
+      return positions;
+    }
+
+    function clearSvg() {
+      Array.from(svg.querySelectorAll("g")).forEach(group => group.remove());
+    }
+
+    function shorten(text, max = 28) {
+      return text.length <= max ? text : text.slice(0, max - 1) + "…";
+    }
+
+    function render() {
+      clearSvg();
+      const box = svg.getBoundingClientRect();
+      const width = Math.max(box.width, 720);
+      const height = Math.max(box.height, 620);
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+      const visibleIds = visibleNodeSet();
+      if (!visibleIds.has(selectedId)) {
+        selectedId = Array.from(visibleIds)[0] || null;
+      }
+
+      const positions = layout(width, height, visibleIds);
+      const edges = graph.edges.filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target));
+
+      const edgeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      const nodeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      svg.append(edgeLayer, nodeLayer);
+
+      for (const edge of edges) {
+        const source = positions.get(edge.source);
+        const target = positions.get(edge.target);
+        if (!source || !target) continue;
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        const offset = 24;
+        const x1 = source.x + dx / distance * offset;
+        const y1 = source.y + dy / distance * offset;
+        const x2 = target.x - dx / distance * offset;
+        const y2 = target.y - dy / distance * offset;
+
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("class", "edge");
+        line.setAttribute("x1", x1);
+        line.setAttribute("y1", y1);
+        line.setAttribute("x2", x2);
+        line.setAttribute("y2", y2);
+        if (edge.source === selectedId || edge.target === selectedId) {
+          line.setAttribute("stroke-width", "2.6");
+          line.setAttribute("stroke", "var(--selected)");
+        }
+        edgeLayer.appendChild(line);
+
+        if (edge.source === selectedId || edge.target === selectedId) {
+          const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          label.setAttribute("class", "edge-label");
+          label.setAttribute("x", (x1 + x2) / 2);
+          label.setAttribute("y", (y1 + y2) / 2 - 4);
+          label.setAttribute("text-anchor", "middle");
+          label.textContent = edge.relation;
+          edgeLayer.appendChild(label);
+        }
+      }
+
+      for (const node of graph.nodes) {
+        if (!visibleIds.has(node.id)) continue;
+        const pos = positions.get(node.id);
+        if (!pos) continue;
+
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute("class", `node${node.id === selectedId ? " selected" : ""}`);
+        group.setAttribute("role", "button");
+        group.setAttribute("aria-label", node.label);
+        group.addEventListener("click", () => {
+          selectedId = node.id;
+          render();
+          renderDetail();
+        });
+
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", pos.x);
+        circle.setAttribute("cy", pos.y);
+        circle.setAttribute("r", "20");
+        circle.setAttribute("fill", colors[node.type] || "var(--muted)");
+        group.appendChild(circle);
+
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", pos.x);
+        label.setAttribute("y", pos.y + 34);
+        label.setAttribute("text-anchor", "middle");
+        label.textContent = shorten(node.label);
+        group.appendChild(label);
+
+        nodeLayer.appendChild(group);
+      }
+
+      renderDetail();
+    }
+
+    function renderDetail() {
+      const node = selectedId ? nodeById.get(selectedId) : null;
+      if (!node) {
+        detailTitle.textContent = "No node selected";
+        detailType.textContent = "none";
+        detailType.style.background = "var(--muted)";
+        detailText.textContent = "No visible node matches the current filters.";
+        edgeList.innerHTML = "";
+        return;
+      }
+
+      detailTitle.textContent = node.label;
+      detailType.textContent = node.type;
+      detailType.style.background = colors[node.type] || "var(--muted)";
+      detailText.textContent = `${node.description} Keywords: ${(node.keywords || []).join(", ")}`;
+
+      const connected = graph.edges.filter(edge => edge.source === node.id || edge.target === node.id);
+      edgeList.innerHTML = "";
+      for (const edge of connected) {
+        const source = nodeById.get(edge.source);
+        const target = nodeById.get(edge.target);
+        const card = document.createElement("section");
+        card.className = "edge-card";
+        const title = document.createElement("strong");
+        title.textContent = `${source?.label || edge.source} --${edge.relation}--> ${target?.label || edge.target}`;
+        const text = document.createElement("p");
+        text.textContent = `${edge.evidence} Sources: ${(edge.source_ids || []).join(", ")}`;
+        card.append(title, text);
+        edgeList.appendChild(card);
+      }
+    }
+
+    search.addEventListener("input", render);
+    typeInputs.forEach(input => input.addEventListener("change", render));
+    window.addEventListener("resize", render);
+    render();
+  </script>
+</body>
+</html>

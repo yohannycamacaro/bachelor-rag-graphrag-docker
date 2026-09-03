@@ -1,0 +1,86 @@
+[
+  {
+    "id": "docker-compose-env",
+    "title": "Environment variables in Compose",
+    "url": "https://docs.docker.com/compose/how-tos/environment-variables/",
+    "area": "Docker Compose environment variables",
+    "planned_usage": "Environment variables, interpolation, precedence, reusable Compose configuration"
+  },
+  {
+    "id": "docker-compose-env-interpolation",
+    "title": "Set, use, and manage variables in a Compose file with interpolation",
+    "url": "https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/",
+    "area": "Docker Compose variable interpolation",
+    "planned_usage": ".env files, shell variables, --env-file, docker compose config --environment"
+  },
+  {
+    "id": "docker-compose-env-precedence",
+    "title": "Environment variables precedence in Docker Compose",
+    "url": "https://docs.docker.com/compose/how-tos/environment-variables/envvars-precedence/",
+    "area": "Docker Compose environment variable precedence",
+    "planned_usage": "Unexpected environment values, precedence between CLI, environment, env_file, .env, and image ENV"
+  },
+  {
+    "id": "docker-compose-networking",
+    "title": "Networking in Compose",
+    "url": "https://docs.docker.com/compose/how-tos/networking/",
+    "area": "Docker Compose networking",
+    "planned_usage": "Default network, service discovery, host and container ports, debugging connectivity"
+  },
+  {
+    "id": "docker-compose-networks-reference",
+    "title": "Define and manage networks in Docker Compose",
+    "url": "https://docs.docker.com/reference/compose-file/networks/",
+    "area": "Compose file reference",
+    "planned_usage": "Named networks, external networks, service network membership"
+  },
+  {
+    "id": "docker-compose-predefined-env",
+    "title": "Configure pre-defined environment variables in Docker Compose",
+    "url": "https://docs.docker.com/compose/how-tos/environment-variables/envvars/",
+    "area": "Docker Compose predefined variables",
+    "planned_usage": "COMPOSE_PROJECT_NAME, COMPOSE_FILE, COMPOSE_PROFILES, COMPOSE_ENV_FILES, DOCKER_HOST, DOCKER_CONTEXT"
+  },
+  {
+    "id": "docker-compose-services-reference",
+    "title": "Define services in Docker Compose",
+    "url": "https://docs.docker.com/reference/compose-file/services/",
+    "area": "Compose service reference",
+    "planned_usage": "links, aliases, network-scoped hostnames, service-level network configuration"
+  },
+  {
+    "id": "docker-compose-startup-order",
+    "title": "Control startup and shutdown order in Compose",
+    "url": "https://docs.docker.com/compose/how-tos/startup-order/",
+    "area": "Docker Compose startup order",
+    "planned_usage": "depends_on, healthcheck, service_started, service_healthy, service readiness"
+  },
+  {
+    "id": "docker-compose-volumes-reference",
+    "title": "Define and manage volumes in Docker Compose",
+    "url": "https://docs.docker.com/reference/compose-file/volumes/",
+    "area": "Compose file reference",
+    "planned_usage": "Top-level volumes, reusable named volumes, external volumes, driver options"
+  },
+  {
+    "id": "docker-daemon-troubleshoot",
+    "title": "Troubleshooting the Docker daemon",
+    "url": "https://docs.docker.com/engine/daemon/troubleshoot/",
+    "area": "Docker Engine troubleshooting",
+    "planned_usage": "Daemon connectivity, DOCKER_HOST, DNS, disappearing networks, volume removal issues"
+  },
+  {
+    "id": "docker-storage-overview",
+    "title": "Storage",
+    "url": "https://docs.docker.com/engine/storage/",
+    "area": "Docker storage overview",
+    "planned_usage": "Container writable layer, volume mounts, bind mounts, tmpfs, persistent vs temporary data"
+  },
+  {
+    "id": "docker-storage-volumes",
+    "title": "Volumes",
+    "url": "https://docs.docker.com/engine/storage/volumes/",
+    "area": "Docker storage",
+    "planned_usage": "Persistent data, named volumes, mount behavior, volume lifecycle"
+  }
+]

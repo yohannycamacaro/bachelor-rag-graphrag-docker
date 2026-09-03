@@ -1,0 +1,6 @@
+results/*.csv
+results/*.jsonl
+!results/.gitkeep
+__pycache__/
+*.pyc
+
