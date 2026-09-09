@@ -89,6 +89,18 @@ El archivo visual se crea en:
 bachelor_rag_project\docs\docker_support_graph_view.html
 ```
 
+Generar un grafico de la comparacion por categorias:
+
+```powershell
+.\bachelor_rag_project\run.ps1 chart
+```
+
+El archivo visual se crea en:
+
+```text
+bachelor_rag_project\docs\category_comparison_chart.png
+```
+
 Probar una pregunta con RAG clasico:
 
 ```powershell

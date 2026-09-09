@@ -111,7 +111,19 @@ Aktuelle Tendenz der Voranalyse:
 - deutliche Vorteile bei Nachvollziehbarkeit und Multi-Hop-Fragen;
 - kleine Unterschiede bei prozeduralen Fragen und Konfigurationskonflikten.
 
-## 8. Kurze muendliche Erklaerung
+## 8. Diagramm erzeugen
+
+```powershell
+.\run.ps1 chart
+```
+
+Dadurch wird ein Bild fuer die aktuelle Kategorieauswertung erzeugt:
+
+```text
+docs\category_comparison_chart.png
+```
+
+## 9. Kurze muendliche Erklaerung
 
 > Ich vergleiche klassisches RAG und GraphRAG nicht allgemein, sondern anhand
 > technischer Troubleshooting-Fragen. Die zentrale Annahme ist, dass GraphRAG
@@ -119,7 +131,7 @@ Aktuelle Tendenz der Voranalyse:
 > Beziehungen zwischen Problem, Komponente, Ursache, Diagnose und Loesung
 > explizit modelliert werden koennen.
 
-## 9. Wichtige Einschraenkung
+## 10. Wichtige Einschraenkung
 
 Die aktuelle Version ist eine retrieval-basierte Voranalyse. Fuer die finale
 Bachelorarbeit muss entschieden werden, ob noch ein echtes LLM und LightRAG als

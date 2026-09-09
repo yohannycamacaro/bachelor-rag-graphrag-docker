@@ -19,5 +19,10 @@ if ($PythonCandidates.Count -eq 0) {
     throw "No Python executable found. Install Python or run this inside Codex."
 }
 
-& $PythonCandidates[0] $EntryPoint @args
+if ($args.Count -gt 0 -and $args[0] -eq "chart") {
+    $ChartScript = Join-Path $ProjectRoot "tools\create_category_chart.py"
+    & $PythonCandidates[0] $ChartScript
+    exit $LASTEXITCODE
+}
 
+& $PythonCandidates[0] $EntryPoint @args
