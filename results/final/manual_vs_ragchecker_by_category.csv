@@ -1,0 +1,7 @@
+category,automatic_n_questions,automatic_classic_f1,automatic_graph_f1,automatic_delta,manual_n_question_pairs,manual_classic_percent,manual_graph_percent,manual_delta
+Konfigurationskonflikt,2,46.0,21.6,-24.4,1,76.0,24.0,-52.0
+Einfache Faktenfrage,2,56.7,41.0,-15.7,1,88.0,96.0,8.0
+Multi-Hop-Frage,2,73.6,42.9,-30.7,2,70.0,62.0,-8.0
+Prozedurale Frage,2,36.3,29.9,-6.4,1,72.0,80.0,8.0
+Relationale Troubleshooting-Frage,2,58.5,71.4,12.9,2,72.0,100.0,28.0
+Nachvollziehbarkeit,2,46.1,60.1,14.0,1,68.0,80.0,12.0

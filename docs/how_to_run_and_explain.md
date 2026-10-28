@@ -43,8 +43,26 @@ unterscheidet.
 
 Damit zeigst du, dass Fragen, Quellen und Graph-Relationen konsistent sind.
 Das ist hilfreich, wenn gefragt wird, ob der Fragenkatalog sauber aufgebaut ist.
+Die Validierung prueft jetzt auch, ob jede Testfrage eine Referenzantwort fuer
+die spaetere manuelle Bewertung besitzt.
 
-## 5. Graph-Struktur zeigen
+## 5. Referenzantworten und Bewertungspaket erzeugen
+
+```powershell
+.\run.ps1 reference-answers
+```
+
+Dieser Befehl prueft, ob alle 48 Fragen eine Referenzantwort haben, und erzeugt
+zwei Dateien im Ordner `results`:
+
+- `reference_answer_report_*.md`: lesbare Liste der Referenzantworten;
+- `manual_scoring_template_*.csv`: Vorlage fuer die manuelle Bewertung von
+  klassischem RAG und GraphRAG.
+
+Die Bewertung kann spaeter mit der Rubrik in `docs\evaluation_rubric.md`
+durchgefuehrt werden.
+
+## 6. Graph-Struktur zeigen
 
 ```powershell
 .\run.ps1 graph-stats
@@ -64,7 +82,7 @@ Die Datei fuer die visuelle Ansicht liegt hier:
 docs\docker_support_graph_view.html
 ```
 
-## 6. Beispiel vergleichen
+## 7. Beispiel vergleichen
 
 Klassisches RAG:
 
@@ -87,7 +105,7 @@ explizite Beziehungen, zum Beispiel:
 problem -> cause -> diagnosis -> solution
 ```
 
-## 7. Gesamte Auswertung starten
+## 8. Gesamte Auswertung starten
 
 ```powershell
 .\run.ps1 compare
@@ -111,7 +129,7 @@ Aktuelle Tendenz der Voranalyse:
 - deutliche Vorteile bei Nachvollziehbarkeit und Multi-Hop-Fragen;
 - kleine Unterschiede bei prozeduralen Fragen und Konfigurationskonflikten.
 
-## 8. Diagramm erzeugen
+## 9. Diagramm erzeugen
 
 ```powershell
 .\run.ps1 chart
@@ -123,7 +141,36 @@ Dadurch wird ein Bild fuer die aktuelle Kategorieauswertung erzeugt:
 docs\category_comparison_chart.png
 ```
 
-## 9. Kurze muendliche Erklaerung
+## 10. Dashboard im Browser starten
+
+```powershell
+.\run.ps1 ui
+```
+
+Oder direkt mit Browser-Start:
+
+```powershell
+.\run.ps1 ui --open
+```
+
+Danach im Browser oeffnen:
+
+```text
+http://127.0.0.1:8765/
+```
+
+Im Dashboard kannst du:
+
+- den Projektstatus sehen;
+- eine Frage aus dem Katalog auswaehlen;
+- klassisches RAG und GraphRAG nebeneinander vergleichen;
+- Evidenzen sehen;
+- die Referenzantwort anzeigen;
+- den aktuellen Kategorievergleich als Diagramm betrachten.
+
+Zum Beenden im Terminal `Ctrl+C` druecken.
+
+## 11. Kurze muendliche Erklaerung
 
 > Ich vergleiche klassisches RAG und GraphRAG nicht allgemein, sondern anhand
 > technischer Troubleshooting-Fragen. Die zentrale Annahme ist, dass GraphRAG
@@ -131,9 +178,13 @@ docs\category_comparison_chart.png
 > Beziehungen zwischen Problem, Komponente, Ursache, Diagnose und Loesung
 > explizit modelliert werden koennen.
 
-## 10. Wichtige Einschraenkung
+## 12. Wichtige Einschraenkung
 
 Die aktuelle Version ist eine retrieval-basierte Voranalyse. Fuer die finale
 Bachelorarbeit muss entschieden werden, ob noch ein echtes LLM und LightRAG als
 konkrete Implementierung integriert werden oder ob die Arbeit als kontrollierter
 Vergleich von klassischem Retrieval und graphbasiertem Retrieval aufgebaut wird.
+
+Neu hinzugefuegt wurde die Evaluationsschicht mit Referenzantworten. Damit ist
+der naechste Schritt klarer: Antworten beider Methoden generieren, anhand der
+Referenzantworten bewerten und die Ergebnisse nach Fragekategorien auswerten.

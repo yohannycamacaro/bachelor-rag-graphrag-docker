@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
 from dataclasses import dataclass
 
@@ -108,6 +109,7 @@ class ClassicRagRetriever:
                 {
                     "id": item.id,
                     "title": item.title,
+                    "text": item.text,
                     "score": round(item.score, 4),
                     "source_ids": list(item.source_ids),
                 }
@@ -124,5 +126,18 @@ def phrase_bonus(question: str, candidate_text: str) -> float:
     for phrase in DOMAIN_PHRASES:
         if phrase in question_text and phrase in candidate:
             bonus += 0.25
+
+    if re.search(r"\b\d+:\d+\b", question_text):
+        if "host port" in candidate and "container port" in candidate:
+            bonus += 0.9
+        if "service-to-service" in candidate or "compose network" in candidate:
+            bonus += 0.3
+
+    if "localhost" in question_text and "host port" in candidate:
+        bonus += 0.4
+
+    if re.search(r"\b[a-z][a-z0-9_-]*:\d+\b", question_text):
+        if "service name" in candidate and "container port" in candidate:
+            bonus += 0.6
 
     return bonus

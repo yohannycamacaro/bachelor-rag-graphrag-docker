@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from .pathing import QUESTIONS_PATH, RESULTS_DIR
+from .pathing import QUESTIONS_PATH, REFERENCE_ANSWERS_PATH, RESULTS_DIR
 
 
 def load_questions(path: Path = QUESTIONS_PATH) -> list[dict[str, object]]:
@@ -18,6 +18,52 @@ def load_questions(path: Path = QUESTIONS_PATH) -> list[dict[str, object]]:
             if line:
                 questions.append(json.loads(line))
     return questions
+
+
+def load_reference_answers(
+    path: Path = REFERENCE_ANSWERS_PATH,
+) -> dict[str, dict[str, object]]:
+    reference_answers: dict[str, dict[str, object]] = {}
+    if not path.exists():
+        return reference_answers
+
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            reference_answers[str(record["question_id"])] = record
+
+    return reference_answers
+
+
+def validate_reference_answers(
+    questions: list[dict[str, object]],
+    reference_answers: dict[str, dict[str, object]],
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    question_ids = {str(question["id"]) for question in questions}
+    reference_ids = set(reference_answers)
+
+    missing = sorted(question_ids - reference_ids)
+    unexpected = sorted(reference_ids - question_ids)
+    if missing:
+        errors.append("Missing reference answers: " + ", ".join(missing))
+    if unexpected:
+        errors.append("Reference answers without matching questions: " + ", ".join(unexpected))
+
+    for question_id, reference in sorted(reference_answers.items()):
+        if not str(reference.get("reference_answer", "")).strip():
+            errors.append(f"{question_id} has an empty reference_answer")
+        if not reference.get("must_include"):
+            warnings.append(f"{question_id} has no must_include entries")
+        if not reference.get("scoring_focus"):
+            warnings.append(f"{question_id} has no scoring_focus")
+
+    return errors, warnings
 
 
 def keyword_coverage(answer: str, expected_keywords: Iterable[str]) -> float:
@@ -269,17 +315,25 @@ def write_manual_scoring_template(
         "category_label",
         "expected_relation_hops",
         "method",
+        "question",
+        "reference_answer",
+        "must_include",
+        "scoring_focus",
         "correctness_1_5",
         "completeness_1_5",
         "traceability_1_5",
         "consistency_1_5",
+        "source_support_1_5",
+        "overall_1_5",
         "notes",
     ]
+    reference_answers = load_reference_answers()
 
     with path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for question in questions:
+            reference = reference_answers.get(str(question["id"]), {})
             for method in ("classic", "graph"):
                 writer.writerow(
                     {
@@ -294,15 +348,245 @@ def write_manual_scoring_template(
                             "",
                         ),
                         "method": method,
+                        "question": question.get("question", ""),
+                        "reference_answer": reference.get("reference_answer", ""),
+                        "must_include": _csv_value(reference.get("must_include", [])),
+                        "scoring_focus": reference.get("scoring_focus", ""),
                         "correctness_1_5": "",
                         "completeness_1_5": "",
                         "traceability_1_5": "",
                         "consistency_1_5": "",
+                        "source_support_1_5": "",
+                        "overall_1_5": "",
                         "notes": "",
                     }
                 )
 
     return path
+
+
+def write_reference_answer_report(
+    questions: list[dict[str, object]],
+    results_dir: Path = RESULTS_DIR,
+) -> Path:
+    results_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = results_dir / f"reference_answer_report_{timestamp}.md"
+    reference_answers = load_reference_answers()
+
+    with path.open("w", encoding="utf-8") as file:
+        file.write("# Referenzantworten fuer die Evaluation\n\n")
+        file.write(
+            "Dieses Dokument sammelt die Referenzantworten, Mindestinhalte und "
+            "Bewertungsschwerpunkte fuer den aktuellen Fragenkatalog.\n\n"
+        )
+
+        for question in questions:
+            question_id = str(question["id"])
+            reference = reference_answers.get(question_id, {})
+            file.write(f"## {question_id}: {question.get('category_label', '')}\n\n")
+            file.write(f"**Frage:** {question.get('question', '')}\n\n")
+            file.write(
+                f"**Referenzantwort:** {reference.get('reference_answer', '')}\n\n"
+            )
+            file.write(
+                "**Mindestinhalte:** "
+                + _csv_value(reference.get("must_include", []))
+                + "\n\n"
+            )
+            file.write(
+                f"**Bewertungsschwerpunkt:** {reference.get('scoring_focus', '')}\n\n"
+            )
+
+    return path
+
+
+def write_candidate_answer_files(
+    records: list[dict[str, object]],
+    results_dir: Path = RESULTS_DIR,
+) -> tuple[Path, Path]:
+    results_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_path = results_dir / f"candidate_answers_{timestamp}.csv"
+    markdown_path = results_dir / f"candidate_answers_{timestamp}.md"
+
+    fieldnames = [
+        "question_id",
+        "category",
+        "category_label",
+        "expected_relation_hops",
+        "method",
+        "question",
+        "candidate_answer",
+        "evidence_summary",
+        "reference_answer",
+        "must_include",
+        "scoring_focus",
+        "correctness_1_5",
+        "completeness_1_5",
+        "traceability_1_5",
+        "consistency_1_5",
+        "source_support_1_5",
+        "overall_1_5",
+        "notes",
+    ]
+
+    with csv_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for record in records:
+            writer.writerow(
+                {
+                    key: _csv_value(record.get(key, ""))
+                    for key in fieldnames
+                }
+            )
+
+    grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for record in records:
+        grouped[str(record.get("question_id", ""))].append(record)
+
+    with markdown_path.open("w", encoding="utf-8") as file:
+        file.write("# Kandidatenantworten fuer die manuelle Evaluation\n\n")
+        file.write(
+            "Dieses Dokument enthaelt die automatisch erzeugten "
+            "Kandidatenantworten des aktuellen Prototyps. Die Antworten sind "
+            "evidenzbasiert und deterministisch aus dem jeweiligen Retrieval "
+            "abgeleitet. Sie ersetzen noch keine finale LLM-basierte "
+            "Antwortgenerierung, eignen sich aber fuer eine erste manuelle "
+            "Bewertung der Methoden nach Kategorie.\n\n"
+        )
+
+        for question_id in sorted(grouped):
+            question_records = grouped[question_id]
+            first = question_records[0]
+            file.write(
+                f"## {question_id}: {first.get('category_label', '')}\n\n"
+            )
+            file.write(f"**Frage:** {first.get('question', '')}\n\n")
+            file.write(
+                f"**Referenzantwort:** {first.get('reference_answer', '')}\n\n"
+            )
+            file.write(
+                f"**Bewertungsschwerpunkt:** {first.get('scoring_focus', '')}\n\n"
+            )
+
+            for record in sorted(
+                question_records,
+                key=lambda item: str(item.get("method", "")),
+            ):
+                file.write(f"### Methode: {record.get('method', '')}\n\n")
+                file.write(
+                    f"{record.get('candidate_answer', '')}\n\n"
+                )
+                file.write("**Evidenz:**\n\n")
+                evidence = str(record.get("evidence_summary", "")).strip()
+                if evidence:
+                    for line in evidence.splitlines():
+                        file.write(f"- {line}\n")
+                else:
+                    file.write("- Keine Evidenz gefunden.\n")
+                file.write("\n")
+
+    return csv_path, markdown_path
+
+
+def write_ragchecker_inputs(
+    records: list[dict[str, object]],
+    results_dir: Path = RESULTS_DIR,
+) -> dict[str, Path]:
+    """Write one RAGChecker-compatible input file per retrieval method."""
+    output_dir = results_dir / "automatic_evaluation"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    paths: dict[str, Path] = {}
+
+    for method in ("classic", "graph"):
+        method_records = [
+            record for record in records if record.get("method") == method
+        ]
+        if not method_records:
+            continue
+
+        results: list[dict[str, object]] = []
+        for record in method_records:
+            contexts: list[dict[str, str]] = []
+            evidence = record.get("evidence", [])
+            if isinstance(evidence, list):
+                for index, item in enumerate(evidence, start=1):
+                    if not isinstance(item, dict):
+                        continue
+                    text = str(item.get("text", "")).strip()
+                    if not text:
+                        continue
+                    contexts.append(
+                        {
+                            "doc_id": str(
+                                item.get("id")
+                                or item.get("source")
+                                or f"{method}-{record['question_id']}-{index}"
+                            ),
+                            "text": text,
+                        }
+                    )
+
+            results.append(
+                {
+                    "query_id": str(record["question_id"]),
+                    "query": str(record["question"]),
+                    "gt_answer": str(record.get("reference_answer", "")),
+                    "response": str(record.get("candidate_answer", "")),
+                    "retrieved_context": contexts,
+                    "metadata": {
+                        "method": method,
+                        "category": str(record.get("category", "")),
+                        "category_label": str(record.get("category_label", "")),
+                        "expected_relation_hops": record.get(
+                            "expected_relation_hops", ""
+                        ),
+                    },
+                }
+            )
+
+        path = output_dir / f"ragchecker_{method}_{timestamp}.json"
+        payload = {"results": results}
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        paths[method] = path
+
+    return paths
+
+
+def evidence_summary(result: dict[str, object]) -> str:
+    evidence = result.get("evidence", [])
+    if not isinstance(evidence, list):
+        return ""
+
+    lines: list[str] = []
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        if "relation" in item:
+            lines.append(
+                "{source_label} --{relation}--> {target_label} "
+                "(sources: {sources})".format(
+                    source_label=item.get("source_label", ""),
+                    relation=item.get("relation", ""),
+                    target_label=item.get("target_label", ""),
+                    sources=", ".join(str(source) for source in item.get("source_ids", [])),
+                )
+            )
+        else:
+            lines.append(
+                "{title} (sources: {sources})".format(
+                    title=item.get("title", ""),
+                    sources=", ".join(str(source) for source in item.get("source_ids", [])),
+                )
+            )
+
+    return "\n".join(lines)
 
 
 def summarize_by_category(records: list[dict[str, object]]) -> list[dict[str, object]]:

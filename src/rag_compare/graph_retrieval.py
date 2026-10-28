@@ -8,6 +8,94 @@ from pathlib import Path
 from .pathing import GRAPH_PATH
 from .text import term_frequency, tokenize
 
+GRAPH_DOMAIN_PHRASES = {
+    "bind mount": 3.0,
+    "container port": 4.0,
+    "docker daemon": 4.0,
+    "docker compose config": 4.0,
+    "env_file": 3.0,
+    "environment variable": 3.0,
+    "external network": 4.0,
+    "healthcheck": 3.0,
+    "host port": 4.0,
+    "localhost": 2.0,
+    "service name": 5.0,
+    "service_healthy": 3.0,
+    "same network": 4.0,
+    "volume": 3.0,
+}
+
+# Equivalent formulations that should contribute to the same retrieval concept.
+# Exact phrase matching alone can miss a relevant graph path when a question
+# describes the opposite state, for example "different networks" versus
+# "services must share a network".
+GRAPH_CONCEPTS = {
+    "network_membership": {
+        "question": (
+            "different network",
+            "different networks",
+            "separate network",
+            "separate networks",
+            "shared network",
+            "same network",
+        ),
+        "candidate": (
+            "different network",
+            "different networks",
+            "network membership",
+            "same network",
+            "share a network",
+            "shared network",
+        ),
+        "weight": 5.0,
+    },
+    "readiness": {
+        "question": ("depends_on", "healthcheck", "service_healthy", "startup"),
+        "candidate": ("depends_on", "healthcheck", "service_healthy", "readiness"),
+        "weight": 3.0,
+    },
+    "port_scope": {
+        "question": ("container port", "host port", "published host port"),
+        "candidate": ("container port", "host port", "published host port"),
+        "weight": 3.0,
+    },
+}
+
+# Some graph nodes describe a narrow scenario whose generic words would
+# otherwise create false positives. Such nodes are only eligible when the
+# question contains at least one discriminating cue.
+NODE_REQUIRED_CUES = {
+    "problem.scaled_service_port_ambiguous": ("scaled", "replica", "dynamic port"),
+    "cause.replica_dynamic_host_ports": ("scaled", "replica", "dynamic port"),
+    "solution.inspect_port_with_index": ("scaled", "replica", "--index"),
+    "problem.host_network_no_service_dns": ("host network", "network_mode"),
+    "cause.host_network_bypasses_compose_dns": ("host network", "network_mode"),
+    "problem.required_interpolation_missing": (
+        "interpolation",
+        "environment variable",
+        "variable is required",
+        "${",
+    ),
+}
+
+GENERIC_PROBLEM_TOKENS = {
+    "cant",
+    "can't",
+    "cannot",
+    "check",
+    "error",
+    "failed",
+    "fails",
+    "fix",
+    "get",
+    "issue",
+    "missing",
+    "problem",
+    "reach",
+    "solve",
+    "wrong",
+}
+
 
 @dataclass(frozen=True)
 class GraphNode:
@@ -74,18 +162,82 @@ class GraphRagRetriever:
         node_tokens = self.node_tfs[node_id]
         score = 0.0
         for token, count in question_tokens.items():
+            if token in GENERIC_PROBLEM_TOKENS:
+                continue
             if token in node_tokens:
                 score += count * node_tokens[token]
         return score
+
+    def _phrase_score(self, question: str, text: str) -> float:
+        question_text = question.lower()
+        candidate = text.lower()
+        score = 0.0
+        for phrase, weight in GRAPH_DOMAIN_PHRASES.items():
+            if phrase in question_text and phrase in candidate:
+                score += weight
+        return score
+
+    def _concept_score(self, question: str, text: str) -> float:
+        question_text = question.lower()
+        candidate = text.lower()
+        score = 0.0
+        for concept in GRAPH_CONCEPTS.values():
+            question_match = any(
+                phrase in question_text for phrase in concept["question"]
+            )
+            candidate_match = any(
+                phrase in candidate for phrase in concept["candidate"]
+            )
+            if question_match and candidate_match:
+                score += float(concept["weight"])
+        return score
+
+    def _node_is_eligible(self, question: str, node_id: str) -> bool:
+        required_cues = NODE_REQUIRED_CUES.get(node_id)
+        if not required_cues:
+            return True
+        question_text = question.lower()
+        return any(cue in question_text for cue in required_cues)
 
     def retrieve(self, question: str, top_k: int = 6) -> list[dict[str, object]]:
         question_tokens = term_frequency(tokenize(question))
         relation_intent = self._relation_intent(question)
         seed_scores = {
-            node_id: self._node_score(question_tokens, node_id)
+            node_id: (
+                self._node_score(question_tokens, node_id)
+                + (self._phrase_score(question, self.nodes[node_id].label) * 2.0)
+                + (self._concept_score(question, self.nodes[node_id].label) * 2.0)
+                + (
+                    self._phrase_score(
+                        question,
+                        " ".join(
+                            [
+                                self.nodes[node_id].description,
+                                " ".join(self.nodes[node_id].keywords),
+                            ]
+                        ),
+                    )
+                    * 0.5
+                )
+                + (
+                    self._concept_score(
+                        question,
+                        " ".join(
+                            [
+                                self.nodes[node_id].description,
+                                " ".join(self.nodes[node_id].keywords),
+                            ]
+                        ),
+                    )
+                    * 0.5
+                )
+            )
+            if self._node_is_eligible(question, node_id)
+            else 0.0
             for node_id in self.nodes
         }
         top_problem_nodes = self._top_problem_nodes(seed_scores, question)
+        focus_nodes = self._focus_nodes(top_problem_nodes)
         seed_nodes = {
             node_id
             for node_id, score in sorted(
@@ -96,6 +248,8 @@ class GraphRagRetriever:
 
         edge_scores: list[tuple[float, GraphEdge]] = []
         for edge in self.edges:
+            if focus_nodes and edge.source not in focus_nodes and edge.target not in focus_nodes:
+                continue
             source_score = seed_scores.get(edge.source, 0.0)
             target_score = seed_scores.get(edge.target, 0.0)
             edge_tf = term_frequency(tokenize(edge.evidence + " " + edge.relation))
@@ -103,6 +257,8 @@ class GraphRagRetriever:
                 count * edge_tf.get(token, 0)
                 for token, count in question_tokens.items()
             )
+            evidence_score += self._phrase_score(question, edge.evidence)
+            evidence_score += self._concept_score(question, edge.evidence)
             score = source_score + target_score + evidence_score
             if edge.relation == "diagnosed_by" and "diagnosis" in relation_intent:
                 score += target_score
@@ -136,6 +292,18 @@ class GraphRagRetriever:
             for score, edge in selected
         ]
 
+    def _focus_nodes(self, top_problem_nodes: set[str]) -> set[str]:
+        if not top_problem_nodes:
+            return set()
+
+        focus_nodes = set(top_problem_nodes)
+        for edge in self.edges:
+            if edge.source in top_problem_nodes:
+                focus_nodes.add(edge.target)
+            if edge.target in top_problem_nodes:
+                focus_nodes.add(edge.source)
+        return focus_nodes
+
     def _top_problem_nodes(
         self,
         seed_scores: dict[str, float],
@@ -153,10 +321,11 @@ class GraphRagRetriever:
             return set()
 
         best_score = max(problem_scores.values())
+        ranked = sorted(problem_scores.items(), key=lambda item: item[1], reverse=True)
         return {
             node_id
-            for node_id, score in problem_scores.items()
-            if score >= best_score * 0.6
+            for node_id, score in ranked[:3]
+            if score >= best_score * 0.4
         }
 
     def _looks_like_problem_question(self, question: str) -> bool:
@@ -277,7 +446,7 @@ class GraphRagRetriever:
             answer = "No graph evidence found in the current Docker support graph."
         else:
             answer_parts = []
-            for item in relations[:4]:
+            for item in relations:
                 source: GraphNode = item["source"]  # type: ignore[assignment]
                 target: GraphNode = item["target"]  # type: ignore[assignment]
                 answer_parts.append(
@@ -298,6 +467,10 @@ class GraphRagRetriever:
                     "relation": item["relation"],
                     "target": item["target"].id,  # type: ignore[index, union-attr]
                     "target_label": item["target"].label,  # type: ignore[index, union-attr]
+                    "text": (
+                        f"{item['source'].label} --{item['relation']}--> "  # type: ignore[index, union-attr]
+                        f"{item['target'].label}. {item['evidence']}"  # type: ignore[index, union-attr]
+                    ),
                     "source_ids": list(item["source_ids"]),
                 }
                 for item in relations

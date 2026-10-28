@@ -1,6 +1,34 @@
-results/*.csv
-results/*.jsonl
-!results/.gitkeep
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
 
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Office working files
+*.docx
+*.xlsx
+~$*
+
+# Generated and intermediate experiment output
+results/*.jsonl
+results/*.csv
+results/*.md
+results/automatic_evaluation/
+results/challenge_set/
+results/holdout_set/
+!results/final/
+!results/final/**

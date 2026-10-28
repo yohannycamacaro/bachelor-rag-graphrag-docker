@@ -1,0 +1,141 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAGChecker results by category</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#172033;font-family:Segoe UI,Arial,sans-serif}main{max-width:1120px;margin:36px auto;padding:0 24px 50px}
+h1{margin:0 0 8px;font-size:30px}header p{margin:0;color:#5d6879}.summary{margin:24px 0;padding:16px 18px;background:#fff9e8;border-left:4px solid #d59b20;line-height:1.5}
+section{background:white;border:1px solid #dce2e8;border-radius:8px;padding:20px;margin:14px 0}.heading{display:flex;justify-content:space-between;align-items:center}h2{font-size:18px;margin:0}.heading span{color:#667085;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:18px}h3{font-size:13px;margin:0 0 12px;color:#4b5563}.bar-label{display:flex;justify-content:space-between;font-size:13px;margin-top:8px}
+.track{height:13px;background:#edf1f5;border-radius:3px;overflow:hidden}.classic,.graph{height:100%}.classic{background:#174a73}.graph{background:#0b8f87}@media(max-width:760px){.metrics{grid-template-columns:1fr}}
+</style></head><body><main><header><h1>RAGChecker results by category</h1><p>Classic RAG versus GraphRAG across six question categories, eight questions per category</p></header>
+<div class="summary"><strong>Largest GraphRAG recall advantage:</strong> Einfache Faktenfrage (+16.1 points). <strong>Largest GraphRAG F1 advantage:</strong> Prozedurale Frage (+3.4 points).</div><section><div class="heading"><h2>Konfigurationskonflikt</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>37.4%</strong></div>
+      <div class="track"><div class="classic" style="width:37.4%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>26.4%</strong></div>
+      <div class="track"><div class="graph" style="width:26.4%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>42.7%</strong></div>
+      <div class="track"><div class="classic" style="width:42.7%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>35.8%</strong></div>
+      <div class="track"><div class="graph" style="width:35.8%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>34.6%</strong></div>
+      <div class="track"><div class="classic" style="width:34.6%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>26.1%</strong></div>
+      <div class="track"><div class="graph" style="width:26.1%"></div></div>
+    </div></div></section><section><div class="heading"><h2>Einfache Faktenfrage</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>34.4%</strong></div>
+      <div class="track"><div class="classic" style="width:34.4%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>18.3%</strong></div>
+      <div class="track"><div class="graph" style="width:18.3%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>41.6%</strong></div>
+      <div class="track"><div class="classic" style="width:41.6%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>57.7%</strong></div>
+      <div class="track"><div class="graph" style="width:57.7%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>35.4%</strong></div>
+      <div class="track"><div class="classic" style="width:35.4%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>25.5%</strong></div>
+      <div class="track"><div class="graph" style="width:25.5%"></div></div>
+    </div></div></section><section><div class="heading"><h2>Multi-Hop-Frage</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>37.0%</strong></div>
+      <div class="track"><div class="classic" style="width:37.0%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>29.5%</strong></div>
+      <div class="track"><div class="graph" style="width:29.5%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>37.9%</strong></div>
+      <div class="track"><div class="classic" style="width:37.9%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>45.1%</strong></div>
+      <div class="track"><div class="graph" style="width:45.1%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>35.0%</strong></div>
+      <div class="track"><div class="classic" style="width:35.0%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>34.2%</strong></div>
+      <div class="track"><div class="graph" style="width:34.2%"></div></div>
+    </div></div></section><section><div class="heading"><h2>Prozedurale Frage</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>27.0%</strong></div>
+      <div class="track"><div class="classic" style="width:27.0%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>24.6%</strong></div>
+      <div class="track"><div class="graph" style="width:24.6%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>34.8%</strong></div>
+      <div class="track"><div class="classic" style="width:34.8%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>45.1%</strong></div>
+      <div class="track"><div class="graph" style="width:45.1%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>24.9%</strong></div>
+      <div class="track"><div class="classic" style="width:24.9%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>28.3%</strong></div>
+      <div class="track"><div class="graph" style="width:28.3%"></div></div>
+    </div></div></section><section><div class="heading"><h2>Relationale Troubleshooting-Frage</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>44.3%</strong></div>
+      <div class="track"><div class="classic" style="width:44.3%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>35.2%</strong></div>
+      <div class="track"><div class="graph" style="width:35.2%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>51.9%</strong></div>
+      <div class="track"><div class="classic" style="width:51.9%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>59.0%</strong></div>
+      <div class="track"><div class="graph" style="width:59.0%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>44.3%</strong></div>
+      <div class="track"><div class="classic" style="width:44.3%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>42.9%</strong></div>
+      <div class="track"><div class="graph" style="width:42.9%"></div></div>
+    </div></div></section><section><div class="heading"><h2>Nachvollziehbarkeit</h2><span>8 questions</span></div>
+        <div class="metrics">
+    <div class="metric">
+      <h3>PRECISION</h3>
+      <div class="bar-label"><span>Classic</span><strong>27.6%</strong></div>
+      <div class="track"><div class="classic" style="width:27.6%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>30.5%</strong></div>
+      <div class="track"><div class="graph" style="width:30.5%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>RECALL</h3>
+      <div class="bar-label"><span>Classic</span><strong>69.4%</strong></div>
+      <div class="track"><div class="classic" style="width:69.4%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>62.7%</strong></div>
+      <div class="track"><div class="graph" style="width:62.7%"></div></div>
+    </div>
+    <div class="metric">
+      <h3>F1</h3>
+      <div class="bar-label"><span>Classic</span><strong>36.9%</strong></div>
+      <div class="track"><div class="classic" style="width:36.9%"></div></div>
+      <div class="bar-label"><span>Graph</span><strong>39.4%</strong></div>
+      <div class="track"><div class="graph" style="width:39.4%"></div></div>
+    </div></div></section></main></body></html>

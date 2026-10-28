@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
-from collections import Counter
+from collections import Counter, defaultdict
+from pathlib import Path
 from pprint import pprint
 
 from .corpus import load_markdown_sections, load_sources
 from .evaluation import (
     build_result_record,
+    evidence_summary,
+    load_reference_answers,
     load_questions,
     summarize_by_category,
+    validate_reference_answers,
     write_category_comparison,
+    write_candidate_answer_files,
+    write_ragchecker_inputs,
     write_csv_summary,
     write_jsonl_results,
     write_manual_scoring_template,
+    write_reference_answer_report,
 )
 from .graph_retrieval import GraphRagRetriever
 from .pathing import GRAPH_PATH
@@ -240,10 +248,210 @@ def command_manual_template(_: argparse.Namespace) -> None:
     print(f"Saved manual scoring template: {path}")
 
 
+def command_reference_answers(_: argparse.Namespace) -> None:
+    questions = load_questions()
+    reference_answers = load_reference_answers()
+    errors, warnings = validate_reference_answers(questions, reference_answers)
+
+    print("Reference answers")
+    print(f"- Questions: {len(questions)}")
+    print(f"- Reference answers: {len(reference_answers)}")
+
+    if warnings:
+        print("")
+        print("Warnings")
+        for warning in warnings:
+            print(f"- {warning}")
+
+    if errors:
+        print("")
+        print("Errors")
+        for error in errors:
+            print(f"- {error}")
+        raise SystemExit(1)
+
+    report_path = write_reference_answer_report(questions)
+    template_path = write_manual_scoring_template(questions)
+    print("")
+    print("Validation passed: every question has a reference answer.")
+    print(f"Saved reference answer report: {report_path}")
+    print(f"Saved manual scoring template: {template_path}")
+
+
+def command_candidate_answers(args: argparse.Namespace) -> None:
+    questions = load_questions()
+    reference_answers = load_reference_answers()
+
+    if args.category:
+        questions = [
+            question
+            for question in questions
+            if str(question.get("category", "")) == args.category
+        ]
+
+    if args.limit:
+        questions = questions[: args.limit]
+
+    if not questions:
+        raise SystemExit("No questions matched the requested filter.")
+
+    if args.method == "both":
+        methods = ["classic", "graph"]
+    else:
+        methods = [args.method]
+
+    retrievers = {
+        method: build_retriever(method)
+        for method in methods
+    }
+
+    records: list[dict[str, object]] = []
+    for question in questions:
+        question_id = str(question["id"])
+        reference = reference_answers.get(question_id, {})
+        for method in methods:
+            result = retrievers[method].answer(str(question["question"]), top_k=args.top_k)
+            record = build_result_record(question, result)
+            record["candidate_answer"] = result["answer"]
+            record["evidence_summary"] = evidence_summary(result)
+            record["reference_answer"] = reference.get("reference_answer", "")
+            record["must_include"] = reference.get("must_include", [])
+            record["scoring_focus"] = reference.get("scoring_focus", "")
+            record["correctness_1_5"] = ""
+            record["completeness_1_5"] = ""
+            record["traceability_1_5"] = ""
+            record["consistency_1_5"] = ""
+            record["source_support_1_5"] = ""
+            record["overall_1_5"] = ""
+            record["notes"] = ""
+            records.append(record)
+
+    csv_path, markdown_path = write_candidate_answer_files(records)
+
+    print("Candidate answers for manual evaluation")
+    print(f"- Questions: {len(questions)}")
+    print(f"- Methods: {', '.join(methods)}")
+    print(f"- Records: {len(records)}")
+    print(f"Saved CSV: {csv_path}")
+    print(f"Saved Markdown: {markdown_path}")
+
+
+def command_prepare_auto_evaluation(args: argparse.Namespace) -> None:
+    questions = load_questions()
+    reference_answers = load_reference_answers()
+    if args.limit:
+        questions = questions[: args.limit]
+
+    retrievers = {
+        method: build_retriever(method)
+        for method in ("classic", "graph")
+    }
+    records: list[dict[str, object]] = []
+    for question in questions:
+        question_id = str(question["id"])
+        reference = reference_answers.get(question_id, {})
+        if not reference.get("reference_answer"):
+            raise SystemExit(f"Missing reference answer for {question_id}")
+
+        for method, retriever in retrievers.items():
+            result = retriever.answer(str(question["question"]), top_k=args.top_k)
+            record = build_result_record(question, result)
+            record["candidate_answer"] = result["answer"]
+            record["reference_answer"] = reference["reference_answer"]
+            records.append(record)
+
+    paths = write_ragchecker_inputs(records)
+    print("RAGChecker input preparation")
+    print(f"- Questions: {len(questions)}")
+    print(f"- Candidate answers: {len(records)}")
+    for method, path in paths.items():
+        print(f"- {method}: {path}")
+
+
+def command_manual_summary(args: argparse.Namespace) -> None:
+    path = Path(args.input).expanduser().resolve()
+    if not path.exists():
+        raise SystemExit(f"Manual evaluation file not found: {path}")
+
+    raw_data = path.read_bytes()
+    try:
+        csv_text = raw_data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        csv_text = raw_data.decode("cp1252")
+    rows = list(csv.DictReader(csv_text.splitlines()))
+
+    score_fields = [
+        "correctness_1_5",
+        "completeness_1_5",
+        "traceability_1_5",
+        "consistency_1_5",
+        "source_support_1_5",
+        "overall_1_5",
+    ]
+    scored_rows = [row for row in rows if str(row.get("overall_1_5", "")).strip()]
+    invalid: list[str] = []
+    for row in scored_rows:
+        for field in score_fields:
+            raw_value = str(row.get(field, "")).strip()
+            try:
+                value = float(raw_value)
+            except ValueError:
+                invalid.append(f"{row.get('question_id')} {row.get('method')}: {field}={raw_value!r}")
+                continue
+            if not 1 <= value <= 5:
+                invalid.append(f"{row.get('question_id')} {row.get('method')}: {field}={raw_value!r}")
+
+    if invalid:
+        print("Invalid scores")
+        for item in invalid:
+            print(f"- {item}")
+        raise SystemExit(1)
+
+    print("Manual evaluation summary")
+    print(f"- File: {path}")
+    print(f"- Total candidate answers: {len(rows)}")
+    print(f"- Scored candidate answers: {len(scored_rows)}")
+    completion = 100 * len(scored_rows) / len(rows) if rows else 0
+    print(f"- Completion: {completion:.1f}%")
+    print(
+        "- Scored questions: "
+        f"{len({str(row.get('question_id', '')) for row in scored_rows})}"
+    )
+
+    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in scored_rows:
+        grouped[str(row.get("method", "unknown"))].append(row)
+
+    if grouped:
+        print("")
+        print("Averages by method")
+    for method, method_rows in sorted(grouped.items()):
+        print(f"- {method} (n={len(method_rows)})")
+        for field in score_fields:
+            values = [float(row[field]) for row in method_rows]
+            print(f"  - {field}: {sum(values) / len(values):.3f}")
+
+    paired_questions: dict[str, set[str]] = defaultdict(set)
+    for row in scored_rows:
+        paired_questions[str(row.get("question_id", ""))].add(
+            str(row.get("method", ""))
+        )
+    complete_pairs = [
+        question_id
+        for question_id, methods in paired_questions.items()
+        if {"classic", "graph"}.issubset(methods)
+    ]
+    print("")
+    print(f"- Complete classic/graph pairs: {len(complete_pairs)}")
+    if complete_pairs:
+        print(f"- Paired question IDs: {', '.join(sorted(complete_pairs))}")
+
+
 def command_validate(_: argparse.Namespace) -> None:
     sources = load_sources()
     source_ids = {source.id for source in sources}
     questions = load_questions()
+    reference_answers = load_reference_answers()
 
     with GRAPH_PATH.open("r", encoding="utf-8") as file:
         graph = json.load(file)
@@ -293,6 +501,13 @@ def command_validate(_: argparse.Namespace) -> None:
             if source_id not in source_ids:
                 errors.append(f"{question['id']} references unknown source {source_id}")
 
+    reference_errors, reference_warnings = validate_reference_answers(
+        questions,
+        reference_answers,
+    )
+    errors.extend(reference_errors)
+    warnings.extend(reference_warnings)
+
     categories = Counter(str(question.get("category")) for question in questions)
     category_sizes = sorted(categories.values())
     if category_sizes and category_sizes[0] != category_sizes[-1]:
@@ -304,6 +519,7 @@ def command_validate(_: argparse.Namespace) -> None:
     print("Dataset validation")
     print(f"- Sources: {len(sources)}")
     print(f"- Questions: {len(questions)}")
+    print(f"- Reference answers: {len(reference_answers)}")
     print(f"- Graph nodes: {len(graph['nodes'])}")
     print(f"- Graph relations: {len(graph['edges'])}")
     print(f"- Categories: {', '.join(f'{name}={count}' for name, count in sorted(categories.items()))}")
@@ -388,6 +604,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create a manual scoring CSV for the current question set",
     )
     manual_template_parser.set_defaults(func=command_manual_template)
+
+    reference_answers_parser = subparsers.add_parser(
+        "reference-answers",
+        help="Validate reference answers and create evaluation files",
+    )
+    reference_answers_parser.set_defaults(func=command_reference_answers)
+
+    candidate_answers_parser = subparsers.add_parser(
+        "candidate-answers",
+        help="Create candidate answers and a manual scoring file",
+    )
+    candidate_answers_parser.add_argument(
+        "--method",
+        choices=["classic", "graph", "both"],
+        default="both",
+    )
+    candidate_answers_parser.add_argument("--limit", type=int, default=None)
+    candidate_answers_parser.add_argument("--top-k", type=int, default=6)
+    candidate_answers_parser.add_argument(
+        "--category",
+        choices=[
+            "configuration_conflict",
+            "factual_simple",
+            "multi_hop",
+            "procedural",
+            "relational_troubleshooting",
+            "traceability",
+        ],
+        default=None,
+        help="Optional category filter",
+    )
+    candidate_answers_parser.set_defaults(func=command_candidate_answers)
+
+    manual_summary_parser = subparsers.add_parser(
+        "manual-summary",
+        help="Summarize a partially or fully scored candidate-answer CSV",
+    )
+    manual_summary_parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to the manual evaluation CSV",
+    )
+    manual_summary_parser.set_defaults(func=command_manual_summary)
+
+    automatic_parser = subparsers.add_parser(
+        "prepare-auto-evaluation",
+        help="Export Classic RAG and GraphRAG results in RAGChecker JSON format",
+    )
+    automatic_parser.add_argument("--limit", type=int, default=None)
+    automatic_parser.add_argument("--top-k", type=int, default=6)
+    automatic_parser.set_defaults(func=command_prepare_auto_evaluation)
 
     validate_parser = subparsers.add_parser(
         "validate",

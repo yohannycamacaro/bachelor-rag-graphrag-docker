@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docker-rag-comparison"
+version = "1.0.0rc1"
+description = "Controlled comparison of classic RAG and GraphRAG for Docker troubleshooting"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+evaluation = ["openai==2.54.0", "python-dotenv==1.2.4", "ragchecker==0.1.9"]
+visualization = ["Pillow==12.3.0"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

@@ -5,9 +5,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
+EVALUATION_DIR = DATA_DIR / "evaluation"
 RAW_NOTES_PATH = DATA_DIR / "raw" / "docker_support_notes.md"
 SOURCES_PATH = DATA_DIR / "sources.json"
 GRAPH_PATH = DATA_DIR / "knowledge" / "docker_support_graph.json"
 QUESTIONS_PATH = DATA_DIR / "questions" / "docker_support_questions.jsonl"
+REFERENCE_ANSWERS_PATH = EVALUATION_DIR / "reference_answers.jsonl"
 RESULTS_DIR = PROJECT_ROOT / "results"
-

@@ -1,0 +1,7 @@
+﻿category,category_label,question_count,classic_precision,graph_precision,delta_precision,classic_recall,graph_recall,delta_recall,classic_f1,graph_f1,delta_f1
+configuration_conflict,Konfigurationskonflikt,8,37.4,26.4,-11.0,42.7,35.8,-6.9,34.6,26.1,-8.5
+factual_simple,Einfache Faktenfrage,8,34.4,18.3,-16.1,41.6,57.7,16.1,35.4,25.5,-9.9
+multi_hop,Multi-Hop-Frage,8,37.0,29.5,-7.5,37.9,45.1,7.2,35.0,34.2,-0.8
+procedural,Prozedurale Frage,8,27.0,24.6,-2.4,34.8,45.1,10.3,24.9,28.3,3.4
+relational_troubleshooting,Relationale Troubleshooting-Frage,8,44.3,35.2,-9.1,51.9,59.0,7.1,44.3,42.9,-1.4
+traceability,Nachvollziehbarkeit,8,27.6,30.5,2.9,69.4,62.7,-6.7,36.9,39.4,2.5

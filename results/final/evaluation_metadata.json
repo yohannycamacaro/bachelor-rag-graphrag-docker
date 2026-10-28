@@ -1,0 +1,39 @@
+{
+  "evaluation_scope": "main_48_questions",
+  "evaluator": {
+    "framework": "RAGChecker",
+    "framework_version": "0.1.9",
+    "openai_client_version": "2.54.0",
+    "model": "gpt-4.1-mini",
+    "metrics": "overall_metrics",
+    "extractor_batch_size": 1,
+    "checker_batch_size": 1,
+    "timeout_seconds": 90,
+    "max_output_tokens": 600,
+    "temperature_parameter": "not explicitly set"
+  },
+  "pricing_usd_per_million_tokens": {
+    "input": 0.4,
+    "output": 1.6
+  },
+  "classic": {
+    "main_requests": 241,
+    "main_input_tokens": 108079,
+    "main_output_tokens": 9747,
+    "main_cost_usd": 0.0588268,
+    "repair_requests": 28,
+    "repair_input_tokens": 12814,
+    "repair_output_tokens": 1181,
+    "repair_cost_usd": 0.0070152,
+    "total_cost_usd": 0.065842
+  },
+  "graph": {
+    "requests": 310,
+    "input_tokens": 151249,
+    "output_tokens": 17250,
+    "total_cost_usd": 0.0880996
+  },
+  "combined_cost_usd": 0.1539416,
+  "cost_formula": "input_tokens / 1000000 * input_price + output_tokens / 1000000 * output_price",
+  "note": "The classic total includes a repair run for six incomplete records. The evaluator model was not used to generate candidate answers."
+}
