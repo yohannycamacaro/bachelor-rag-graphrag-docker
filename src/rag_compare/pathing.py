@@ -10,5 +10,15 @@ RAW_NOTES_PATH = DATA_DIR / "raw" / "docker_support_notes.md"
 SOURCES_PATH = DATA_DIR / "sources.json"
 GRAPH_PATH = DATA_DIR / "knowledge" / "docker_support_graph.json"
 QUESTIONS_PATH = DATA_DIR / "questions" / "docker_support_questions.jsonl"
+CHALLENGE_QUESTIONS_PATH = (
+    DATA_DIR / "questions" / "docker_support_challenge_questions.jsonl"
+)
+HOLDOUT_QUESTIONS_PATH = (
+    DATA_DIR / "questions" / "docker_support_holdout_questions.jsonl"
+)
 REFERENCE_ANSWERS_PATH = EVALUATION_DIR / "reference_answers.jsonl"
+CHALLENGE_REFERENCE_ANSWERS_PATH = (
+    EVALUATION_DIR / "challenge_reference_answers.jsonl"
+)
+HOLDOUT_REFERENCE_ANSWERS_PATH = EVALUATION_DIR / "holdout_reference_answers.jsonl"
 RESULTS_DIR = PROJECT_ROOT / "results"

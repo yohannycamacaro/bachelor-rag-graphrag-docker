@@ -26,9 +26,36 @@ class DashboardUiTests(unittest.TestCase):
         self.assertEqual("graph", result["graph"]["method"])
         self.assertTrue(result["reference"]["reference_answer"])
 
+    def test_all_three_question_sets_are_available_with_references(self) -> None:
+        expected_counts = {"main": 48, "challenge": 12, "holdout": 12}
+        available_sets = {
+            item["id"]: item for item in STATE.question_set_list()
+        }
+
+        self.assertEqual(set(expected_counts), set(available_sets))
+        self.assertEqual(72, sum(expected_counts.values()))
+
+        for set_key, expected_count in expected_counts.items():
+            questions = STATE.question_list(set_key)
+            references = STATE.references_for_set(set_key)
+            self.assertEqual(expected_count, len(questions))
+            self.assertEqual(expected_count, len(references))
+            self.assertTrue(all(question["question_de"] for question in questions))
+
+            first_question = STATE.question_by_id(str(questions[0]["id"]), set_key)
+            self.assertIsNotNone(first_question)
+            result = STATE.ask_both(
+                str(first_question["question"]),
+                str(first_question["id"]),
+                set_key,
+            )
+            self.assertEqual(set_key, result["set_id"])
+            self.assertTrue(result["reference"]["reference_answer"])
+
     def test_visible_interface_labels_are_german(self) -> None:
         for expected in (
             "Katalogfrage auswählen",
+            "Datensatz",
             "Beide Methoden vergleichen",
             "Vollständiger Fragenkatalog",
             "Vergleichsergebnis",

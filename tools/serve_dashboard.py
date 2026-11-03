@@ -23,12 +23,48 @@ from rag_compare.evaluation import (  # noqa: E402
     load_reference_answers,
 )
 from rag_compare.graph_retrieval import GraphRagRetriever  # noqa: E402
-from rag_compare.pathing import GRAPH_PATH, RESULTS_DIR  # noqa: E402
+from rag_compare.pathing import (  # noqa: E402
+    CHALLENGE_QUESTIONS_PATH,
+    CHALLENGE_REFERENCE_ANSWERS_PATH,
+    GRAPH_PATH,
+    HOLDOUT_QUESTIONS_PATH,
+    HOLDOUT_REFERENCE_ANSWERS_PATH,
+    QUESTIONS_PATH,
+    REFERENCE_ANSWERS_PATH,
+    RESULTS_DIR,
+)
 from rag_compare.retrieval import ClassicRagRetriever  # noqa: E402
 
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+
+QUESTION_SET_CONFIG = {
+    "main": {
+        "label": "Main-Set",
+        "description": (
+            "48 Fragen der primären Vergleichsauswertung, acht pro Kategorie."
+        ),
+        "question_path": QUESTIONS_PATH,
+        "reference_path": REFERENCE_ANSWERS_PATH,
+    },
+    "challenge": {
+        "label": "Challenge-Set",
+        "description": (
+            "12 gezielt anspruchsvolle Fragen, zwei pro Kategorie."
+        ),
+        "question_path": CHALLENGE_QUESTIONS_PATH,
+        "reference_path": CHALLENGE_REFERENCE_ANSWERS_PATH,
+    },
+    "holdout": {
+        "label": "Holdout-Set",
+        "description": (
+            "12 reservierte Fragen, die nicht zur Retriever-Anpassung verwendet wurden."
+        ),
+        "question_path": HOLDOUT_QUESTIONS_PATH,
+        "reference_path": HOLDOUT_REFERENCE_ANSWERS_PATH,
+    },
+}
 
 
 def latest_category_csv() -> Path | None:
@@ -44,27 +80,68 @@ class DashboardState:
     def __init__(self) -> None:
         self.sources = load_sources()
         self.sections = load_markdown_sections()
-        self.questions = load_questions()
-        self.reference_answers = load_reference_answers()
+        self.question_sets = {
+            set_key: load_questions(config["question_path"])
+            for set_key, config in QUESTION_SET_CONFIG.items()
+        }
+        self.reference_sets = {
+            set_key: load_reference_answers(config["reference_path"])
+            for set_key, config in QUESTION_SET_CONFIG.items()
+        }
+        # Backward-compatible aliases for scripts and tests that use the main set.
+        self.questions = self.question_sets["main"]
+        self.reference_answers = self.reference_sets["main"]
         with GRAPH_PATH.open("r", encoding="utf-8") as file:
             self.graph = json.load(file)
         self.classic = ClassicRagRetriever(self.sections)
         self.graph_retriever = GraphRagRetriever()
 
-    def status(self) -> dict[str, object]:
-        categories = Counter(str(question.get("category")) for question in self.questions)
+    def normalized_set_key(self, set_key: str) -> str:
+        return set_key if set_key in QUESTION_SET_CONFIG else "main"
+
+    def questions_for_set(self, set_key: str = "main") -> list[dict[str, object]]:
+        return self.question_sets[self.normalized_set_key(set_key)]
+
+    def references_for_set(
+        self, set_key: str = "main"
+    ) -> dict[str, dict[str, object]]:
+        return self.reference_sets[self.normalized_set_key(set_key)]
+
+    def question_set_list(self) -> list[dict[str, object]]:
+        return [
+            {
+                "id": set_key,
+                "label": config["label"],
+                "description": config["description"],
+                "question_count": len(self.question_sets[set_key]),
+                "reference_count": len(self.reference_sets[set_key]),
+            }
+            for set_key, config in QUESTION_SET_CONFIG.items()
+        ]
+
+    def status(self, set_key: str = "main") -> dict[str, object]:
+        normalized_key = self.normalized_set_key(set_key)
+        questions = self.questions_for_set(normalized_key)
+        references = self.references_for_set(normalized_key)
+        categories = Counter(str(question.get("category")) for question in questions)
         node_types = Counter(node["type"] for node in self.graph["nodes"])
         relation_types = Counter(edge["relation"] for edge in self.graph["edges"])
         avg_hops = sum(
             float(question.get("expected_relation_hops") or 0)
-            for question in self.questions
-        ) / max(len(self.questions), 1)
+            for question in questions
+        ) / max(len(questions), 1)
 
         return {
+            "set_id": normalized_key,
+            "set_label": QUESTION_SET_CONFIG[normalized_key]["label"],
             "sources": len(self.sources),
             "support_cases": len(self.sections),
-            "questions": len(self.questions),
-            "reference_answers": len(self.reference_answers),
+            "questions": len(questions),
+            "total_questions": sum(len(items) for items in self.question_sets.values()),
+            "reference_answers": len(references),
+            "total_reference_answers": sum(
+                len(items) for items in self.reference_sets.values()
+            ),
             "avg_expected_relation_hops": round(avg_hops, 2),
             "graph_nodes": len(self.graph["nodes"]),
             "graph_relations": len(self.graph["edges"]),
@@ -73,9 +150,9 @@ class DashboardState:
             "relation_types": dict(sorted(relation_types.items())),
         }
 
-    def categories(self) -> list[dict[str, object]]:
+    def categories(self, set_key: str = "main") -> list[dict[str, object]]:
         grouped: dict[str, list[dict[str, object]]] = {}
-        for question in self.questions:
+        for question in self.questions_for_set(set_key):
             grouped.setdefault(str(question.get("category")), []).append(question)
 
         rows: list[dict[str, object]] = []
@@ -93,7 +170,7 @@ class DashboardState:
             )
         return rows
 
-    def question_list(self) -> list[dict[str, object]]:
+    def question_list(self, set_key: str = "main") -> list[dict[str, object]]:
         return [
             {
                 "id": question["id"],
@@ -106,11 +183,13 @@ class DashboardState:
                     "expected_relation_hops", ""
                 ),
             }
-            for question in self.questions
+            for question in self.questions_for_set(set_key)
         ]
 
-    def question_by_id(self, question_id: str) -> dict[str, object] | None:
-        for question in self.questions:
+    def question_by_id(
+        self, question_id: str, set_key: str = "main"
+    ) -> dict[str, object] | None:
+        for question in self.questions_for_set(set_key):
             if str(question["id"]) == question_id:
                 return question
         return None
@@ -119,8 +198,14 @@ class DashboardState:
         self,
         question_text: str,
         question_id: str | None = None,
+        set_key: str = "main",
     ) -> dict[str, object]:
-        question = self.question_by_id(question_id or "") if question_id else None
+        normalized_key = self.normalized_set_key(set_key)
+        question = (
+            self.question_by_id(question_id or "", normalized_key)
+            if question_id
+            else None
+        )
         if question is None:
             question = {
                 "id": "custom",
@@ -138,8 +223,11 @@ class DashboardState:
         graph_result = self.graph_retriever.answer(question_text, top_k=6)
 
         response = {
+            "set_id": normalized_key,
             "question": question,
-            "reference": self.reference_answers.get(str(question.get("id")), {}),
+            "reference": self.references_for_set(normalized_key).get(
+                str(question.get("id")), {}
+            ),
             "classic": classic_result,
             "graph": graph_result,
         }
@@ -169,28 +257,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        set_key = first(query, "set") or "main"
 
         try:
             if path == "/":
                 self.send_html(DASHBOARD_HTML)
+            elif path == "/api/question-sets":
+                self.send_json(STATE.question_set_list())
             elif path == "/api/status":
-                self.send_json(STATE.status())
+                self.send_json(STATE.status(set_key))
             elif path == "/api/categories":
-                self.send_json(STATE.categories())
+                self.send_json(STATE.categories(set_key))
             elif path == "/api/questions":
-                self.send_json(STATE.question_list())
+                self.send_json(STATE.question_list(set_key))
             elif path == "/api/latest-comparison":
                 self.send_json(STATE.latest_comparison())
             elif path == "/api/query":
                 question_id = first(query, "id")
                 question_text = first(query, "question")
                 if question_id and not question_text:
-                    question = STATE.question_by_id(question_id)
+                    question = STATE.question_by_id(question_id, set_key)
                     question_text = str(question.get("question", "")) if question else ""
                 if not question_text:
                     self.send_json({"error": "Frage fehlt."}, status=400)
                     return
-                self.send_json(STATE.ask_both(question_text, question_id))
+                self.send_json(
+                    STATE.ask_both(question_text, question_id, set_key)
+                )
             elif path == "/chart.png":
                 self.send_file(PROJECT_ROOT / "docs" / "category_comparison_chart.png")
             elif path == "/graph-view":
@@ -543,7 +636,10 @@ DASHBOARD_HTML = r"""<!doctype html>
       <aside>
         <section>
           <h2>Katalogfrage auswählen</h2>
-          <div class="small-note">Wählen Sie eine der 48 Versuchsfragen aus. Für den Vergleich ist keine Texteingabe erforderlich.</div>
+          <div class="small-note">Wählen Sie einen Datensatz und anschließend eine Versuchsfrage aus. Für den Vergleich ist keine Texteingabe erforderlich.</div>
+          <label for="questionSet">Datensatz</label>
+          <select id="questionSet"></select>
+          <div id="setDescription" class="small-note"></div>
           <label for="questionSelect">Fragenkatalog</label>
           <select id="questionSelect"></select>
           <div id="questionMeta" class="question-meta"></div>
@@ -588,14 +684,14 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="small-note">Die Bedienoberfläche ist deutsch. Antwort- und Evidenztexte bleiben in der englischen Originalsprache der ausgewerteten Docker-Dokumentation.</div>
         </section>
         <section>
-          <h2>Gespeicherte Voranalyse</h2>
+          <h2>Gespeicherte Voranalyse des Main-Sets</h2>
           <img class="chart" src="/chart.png" alt="Voranalyse nach Fragekategorien">
           <div id="comparisonTable" class="table-wrap" style="margin-top: 14px;"></div>
         </section>
       </div>
     </div>
     <section>
-      <h2>Vollständiger Fragenkatalog</h2>
+      <h2 id="catalogTitle">Vollständiger Fragenkatalog</h2>
       <div class="catalog-filters">
         <div>
           <label for="questionSearch">Suche nach ID oder Fragetext</label>
@@ -613,13 +709,17 @@ DASHBOARD_HTML = r"""<!doctype html>
   <script>
     const $ = (id) => document.getElementById(id);
     let questions = [];
+    let questionSets = [];
+    let activeSet = "main";
 
     const difficultyLabels = {
       simple: "Einfach",
       procedural: "Prozedural",
       relational: "Relational",
       multi_hop: "Multi-Hop",
-      traceability: "Nachvollziehbarkeit"
+      traceability: "Nachvollziehbarkeit",
+      advanced: "Anspruchsvoll",
+      holdout: "Holdout"
     };
 
     const relationLabels = {
@@ -688,20 +788,41 @@ DASHBOARD_HTML = r"""<!doctype html>
       return relationLabels[value] || value || "Relation";
     }
 
+    async function loadQuestionSets() {
+      questionSets = await getJson("/api/question-sets");
+      $("questionSet").innerHTML = questionSets.map((setInfo) =>
+        `<option value="${esc(setInfo.id)}">${esc(setInfo.label)} · ${esc(setInfo.question_count)} Fragen</option>`
+      ).join("");
+      $("questionSet").value = activeSet;
+      updateSetDescription();
+    }
+
+    function activeSetInfo() {
+      return questionSets.find((setInfo) => setInfo.id === activeSet);
+    }
+
+    function updateSetDescription() {
+      const setInfo = activeSetInfo();
+      $("setDescription").textContent = setInfo?.description || "";
+      $("catalogTitle").textContent = setInfo
+        ? `Vollständiger Fragenkatalog: ${setInfo.label}`
+        : "Vollständiger Fragenkatalog";
+    }
+
     async function loadStatus() {
-      const status = await getJson("/api/status");
+      const status = await getJson(`/api/status?set=${encodeURIComponent(activeSet)}`);
       $("stats").innerHTML = [
         metric("Quellen", status.sources),
         metric("Wissensfälle", status.support_cases),
-        metric("Katalogfragen", status.questions),
-        metric("Referenzantworten", status.reference_answers),
+        metric("Fragen gesamt", status.total_questions),
+        metric(`${status.set_label}: Fragen`, status.questions),
         metric("Knoten", status.graph_nodes),
         metric("Relationen", status.graph_relations),
       ].join("");
     }
 
     async function loadQuestions() {
-      questions = await getJson("/api/questions");
+      questions = await getJson(`/api/questions?set=${encodeURIComponent(activeSet)}`);
       $("questionSelect").innerHTML = questions.map((q) =>
         `<option value="${esc(q.id)}">${esc(q.id)} · ${esc(q.category_label)} · ${esc(displayQuestion(q))}</option>`
       ).join("");
@@ -716,8 +837,11 @@ DASHBOARD_HTML = r"""<!doctype html>
       }`;
 
       if (questions.length) {
-        $("questionSelect").value = "Q002";
-        if (!$("questionSelect").value) $("questionSelect").value = questions[0].id;
+        const preferredId = activeSet === "main" ? "Q002" : questions[0].id;
+        $("questionSelect").value = preferredId;
+        if (!$("questionSelect").value) {
+          $("questionSelect").value = questions[0].id;
+        }
         updateSelectedQuestion();
       }
       renderQuestionCatalog();
@@ -783,7 +907,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     async function loadCategories() {
-      const rows = await getJson("/api/categories");
+      const rows = await getJson(`/api/categories?set=${encodeURIComponent(activeSet)}`);
       $("categories").innerHTML = `<table><thead><tr><th>Kategorie</th><th>Anzahl</th><th>Ø Sprünge</th></tr></thead><tbody>${
         rows.map((row) => `<tr><td>${esc(row.label)}</td><td>${esc(row.count)}</td><td>${esc(row.avg_hops)}</td></tr>`).join("")
       }</tbody></table>`;
@@ -849,7 +973,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const id = $("questionSelect").value;
       if (!id) return;
       setLoading();
-      const data = await getJson(`/api/query?id=${encodeURIComponent(id)}`);
+      const data = await getJson(
+        `/api/query?set=${encodeURIComponent(activeSet)}&id=${encodeURIComponent(id)}`
+      );
       renderResult(data);
     }
 
@@ -863,10 +989,24 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
       $("customQuestion").setCustomValidity("");
       setLoading();
-      const data = await getJson(`/api/query?question=${encodeURIComponent(question)}`);
+      const data = await getJson(
+        `/api/query?set=${encodeURIComponent(activeSet)}&question=${encodeURIComponent(question)}`
+      );
       renderResult(data);
     }
 
+    async function loadActiveSet() {
+      $("questionSearch").value = "";
+      updateSetDescription();
+      setLoading();
+      await Promise.all([loadStatus(), loadQuestions(), loadCategories()]);
+      await askCatalogQuestion();
+    }
+
+    $("questionSet").addEventListener("change", async () => {
+      activeSet = $("questionSet").value;
+      await loadActiveSet();
+    });
     $("questionSelect").addEventListener("change", () => {
       updateSelectedQuestion();
     });
@@ -876,8 +1016,8 @@ DASHBOARD_HTML = r"""<!doctype html>
     $("askButton").addEventListener("click", askCatalogQuestion);
     $("customAskButton").addEventListener("click", askCustomQuestion);
 
-    Promise.all([loadStatus(), loadQuestions(), loadCategories(), loadComparison()])
-      .then(askCatalogQuestion)
+    Promise.all([loadQuestionSets(), loadComparison()])
+      .then(loadActiveSet)
       .catch((error) => {
         console.error(error);
         $("classicAnswer").textContent = "Die Oberfläche konnte nicht geladen werden.";

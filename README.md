@@ -102,12 +102,13 @@ python tools/serve_dashboard.py --open
 The dashboard is available at `http://127.0.0.1:8765`. The core experiment
 does not require a running Docker daemon or an OpenAI API key.
 
-The interface is in German. Supervisors can select any of the 48 catalog
-questions and compare both retrieval methods without entering text. A searchable
-table shows the complete question catalog, categories, difficulty and expected
-relation hops. Free-form questions remain available as an optional exploratory
-mode. Retrieved answers and evidence retain the English source language of the
-official Docker documentation so that the recorded experiment remains unchanged.
+The interface is in German. A dataset selector provides all 72 questions from
+the main set (48), challenge set (12) and holdout set (12). Supervisors can
+compare both retrieval methods without entering text. A searchable table shows
+the selected catalog, categories, difficulty and expected relation hops.
+Free-form questions remain available as an optional exploratory mode. Retrieved
+answers and evidence retain the English source language of the official Docker
+documentation so that the recorded experiment remains unchanged.
 
 Optional evaluator dependencies:
 
