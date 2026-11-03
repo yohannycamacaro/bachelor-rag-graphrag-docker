@@ -10,11 +10,11 @@ OUTPUT_PATH = PROJECT_ROOT / "docs" / "docker_support_graph_view.html"
 
 
 HTML_TEMPLATE = """<!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Docker Support Knowledge Graph</title>
+  <title>Docker-Support-Wissensgraph</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -228,21 +228,21 @@ HTML_TEMPLATE = """<!doctype html>
 </head>
 <body>
   <main>
-    <section class="workspace" aria-label="Knowledge graph">
+    <section class="workspace" aria-label="Wissensgraph">
       <header>
-        <h1>Docker Support Knowledge Graph</h1>
+        <h1>Docker-Support-Wissensgraph</h1>
         <div class="stats" id="stats"></div>
       </header>
       <div class="controls">
-        <input id="search" type="search" placeholder="Search node label, description, or keyword">
-        <label><input type="checkbox" data-type="problem" checked> Problems</label>
-        <label><input type="checkbox" data-type="component" checked> Components</label>
-        <label><input type="checkbox" data-type="cause" checked> Causes</label>
-        <label><input type="checkbox" data-type="diagnosis" checked> Diagnosis</label>
-        <label><input type="checkbox" data-type="solution" checked> Solutions</label>
-        <label><input type="checkbox" data-type="document" checked> Documents</label>
+        <input id="search" type="search" placeholder="Knoten, Beschreibung oder Schlüsselwort suchen">
+        <label><input type="checkbox" data-type="problem" checked> Probleme</label>
+        <label><input type="checkbox" data-type="component" checked> Komponenten</label>
+        <label><input type="checkbox" data-type="cause" checked> Ursachen</label>
+        <label><input type="checkbox" data-type="diagnosis" checked> Diagnosen</label>
+        <label><input type="checkbox" data-type="solution" checked> Lösungen</label>
+        <label><input type="checkbox" data-type="document" checked> Dokumente</label>
       </div>
-      <svg id="graph" role="img" aria-label="Graph of Docker support problems, causes, components, and solutions">
+      <svg id="graph" role="img" aria-label="Graph aus Docker-Support-Problemen, Ursachen, Komponenten und Lösungen">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
@@ -251,9 +251,9 @@ HTML_TEMPLATE = """<!doctype html>
       </svg>
     </section>
     <aside aria-live="polite">
-      <h2 id="detail-title">Select a node</h2>
-      <span class="pill" id="detail-type" style="background: var(--muted)">graph</span>
-      <p class="detail" id="detail-text">Click a circle to see its description, keywords, and connected relations.</p>
+      <h2 id="detail-title">Knoten auswählen</h2>
+      <span class="pill" id="detail-type" style="background: var(--muted)">Graph</span>
+      <p class="detail" id="detail-text">Klicken Sie auf einen Kreis, um Beschreibung, Schlüsselwörter und verbundene Relationen anzuzeigen.</p>
       <div class="edge-list" id="edge-list"></div>
     </aside>
   </main>
@@ -278,11 +278,31 @@ HTML_TEMPLATE = """<!doctype html>
       document: "var(--document)"
     };
 
+    const typeLabels = {
+      problem: "Problem",
+      component: "Komponente",
+      cause: "Ursache",
+      diagnosis: "Diagnose",
+      solution: "Lösung",
+      document: "Dokument"
+    };
+
+    const relationLabels = {
+      affects: "betrifft",
+      conflicts_with: "steht im Konflikt mit",
+      diagnosed_by: "wird diagnostiziert durch",
+      distinguished_from: "wird unterschieden von",
+      documented_in: "ist dokumentiert in",
+      may_be_caused_by: "kann verursacht werden durch",
+      requires: "erfordert",
+      solved_by: "wird gelöst durch"
+    };
+
     const order = ["problem", "component", "cause", "diagnosis", "solution", "document"];
     const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
     let selectedId = graph.nodes[0]?.id || null;
 
-    stats.textContent = `${graph.nodes.length} nodes · ${graph.edges.length} relations`;
+    stats.textContent = `${graph.nodes.length} Knoten · ${graph.edges.length} Relationen`;
 
     function activeTypes() {
       return new Set(typeInputs.filter(input => input.checked).map(input => input.dataset.type));
@@ -397,7 +417,7 @@ HTML_TEMPLATE = """<!doctype html>
           label.setAttribute("x", (x1 + x2) / 2);
           label.setAttribute("y", (y1 + y2) / 2 - 4);
           label.setAttribute("text-anchor", "middle");
-          label.textContent = edge.relation;
+          label.textContent = relationLabels[edge.relation] || edge.relation;
           edgeLayer.appendChild(label);
         }
       }
@@ -440,18 +460,18 @@ HTML_TEMPLATE = """<!doctype html>
     function renderDetail() {
       const node = selectedId ? nodeById.get(selectedId) : null;
       if (!node) {
-        detailTitle.textContent = "No node selected";
-        detailType.textContent = "none";
+        detailTitle.textContent = "Kein Knoten ausgewählt";
+        detailType.textContent = "keiner";
         detailType.style.background = "var(--muted)";
-        detailText.textContent = "No visible node matches the current filters.";
+        detailText.textContent = "Kein sichtbarer Knoten entspricht den aktuellen Filtern.";
         edgeList.innerHTML = "";
         return;
       }
 
       detailTitle.textContent = node.label;
-      detailType.textContent = node.type;
+      detailType.textContent = typeLabels[node.type] || node.type;
       detailType.style.background = colors[node.type] || "var(--muted)";
-      detailText.textContent = `${node.description} Keywords: ${(node.keywords || []).join(", ")}`;
+      detailText.textContent = `${node.description} Schlüsselwörter: ${(node.keywords || []).join(", ")}`;
 
       const connected = graph.edges.filter(edge => edge.source === node.id || edge.target === node.id);
       edgeList.innerHTML = "";
@@ -461,9 +481,9 @@ HTML_TEMPLATE = """<!doctype html>
         const card = document.createElement("section");
         card.className = "edge-card";
         const title = document.createElement("strong");
-        title.textContent = `${source?.label || edge.source} --${edge.relation}--> ${target?.label || edge.target}`;
+        title.textContent = `${source?.label || edge.source} · ${relationLabels[edge.relation] || edge.relation} · ${target?.label || edge.target}`;
         const text = document.createElement("p");
-        text.textContent = `${edge.evidence} Sources: ${(edge.source_ids || []).join(", ")}`;
+        text.textContent = `${edge.evidence} Quellen: ${(edge.source_ids || []).join(", ")}`;
         card.append(title, text);
         edgeList.appendChild(card);
       }
@@ -486,7 +506,7 @@ def main() -> None:
     graph_json = json.dumps(graph, ensure_ascii=False, indent=2)
     html = HTML_TEMPLATE.replace("GRAPH_DATA_PLACEHOLDER", graph_json)
     OUTPUT_PATH.write_text(html, encoding="utf-8")
-    print(f"Graph viewer written to: {OUTPUT_PATH}")
+    print(f"Graphansicht geschrieben nach: {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

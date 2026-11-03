@@ -101,6 +101,10 @@ class DashboardState:
                 "question_de": question.get("question_de", ""),
                 "category": question.get("category", ""),
                 "category_label": question.get("category_label", ""),
+                "difficulty": question.get("difficulty", ""),
+                "expected_relation_hops": question.get(
+                    "expected_relation_hops", ""
+                ),
             }
             for question in self.questions
         ]
@@ -184,7 +188,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     question = STATE.question_by_id(question_id)
                     question_text = str(question.get("question", "")) if question else ""
                 if not question_text:
-                    self.send_json({"error": "Missing question"}, status=400)
+                    self.send_json({"error": "Frage fehlt."}, status=400)
                     return
                 self.send_json(STATE.ask_both(question_text, question_id))
             elif path == "/chart.png":
@@ -192,7 +196,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif path == "/graph-view":
                 self.send_file(PROJECT_ROOT / "docs" / "docker_support_graph_view.html")
             else:
-                self.send_json({"error": "Not found"}, status=404)
+                self.send_json({"error": "Nicht gefunden."}, status=404)
         except Exception as error:  # pragma: no cover - useful in local UI
             self.send_json({"error": str(error)}, status=500)
 
@@ -234,11 +238,11 @@ def first(query: dict[str, list[str]], key: str) -> str:
 
 
 DASHBOARD_HTML = r"""<!doctype html>
-<html lang="es">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RAG vs GraphRAG Dashboard</title>
+  <title>Klassisches RAG und GraphRAG im Vergleich</title>
   <style>
     :root {
       --bg: #f5f7fb;
@@ -327,7 +331,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       font-size: 13px;
       font-weight: 650;
     }
-    select, textarea {
+    select, textarea, input[type="search"] {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -340,6 +344,20 @@ DASHBOARD_HTML = r"""<!doctype html>
       min-height: 112px;
       resize: vertical;
       line-height: 1.4;
+    }
+    .question-preview {
+      min-height: 92px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      line-height: 1.45;
+    }
+    .question-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
     }
     button, a.button {
       display: inline-flex;
@@ -466,6 +484,41 @@ DASHBOARD_HTML = r"""<!doctype html>
       font-size: 13px;
       line-height: 1.4;
     }
+    details.custom-question {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+    details.custom-question summary {
+      cursor: pointer;
+      color: var(--blue);
+      font-weight: 700;
+    }
+    .catalog-filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 320px);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .catalog-filters label { margin-top: 0; }
+    .catalog-wrap {
+      max-height: 520px;
+      overflow: auto;
+    }
+    .catalog-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .catalog-table td:nth-child(1) { width: 76px; }
+    .catalog-table td:nth-child(2) { width: 210px; }
+    .catalog-table td:nth-child(4),
+    .catalog-table td:nth-child(5) { width: 110px; }
+    button.catalog-select {
+      min-height: 34px;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
     .loading {
       color: var(--muted);
       font-style: italic;
@@ -473,6 +526,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     @media (max-width: 980px) {
       .stats { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
       .grid, .answers { grid-template-columns: 1fr; }
+      .catalog-filters { grid-template-columns: 1fr; }
       main { padding: 18px 14px 32px; }
       header { padding: 20px 18px 14px; }
     }
@@ -480,58 +534,127 @@ DASHBOARD_HTML = r"""<!doctype html>
 </head>
 <body>
   <header>
-    <h1>Classic RAG vs GraphRAG</h1>
-    <div class="subtitle">Docker Compose Troubleshooting · prototipo de Bachelorarbeit</div>
+    <h1>Klassisches RAG und GraphRAG im Vergleich</h1>
+    <div class="subtitle">Interaktiver Versuchsaufbau für Docker-Compose-Troubleshooting</div>
   </header>
   <main>
     <div class="stats" id="stats"></div>
     <div class="grid">
       <aside>
         <section>
-          <h2>Pregunta</h2>
-          <label for="questionSelect">Catálogo</label>
+          <h2>Katalogfrage auswählen</h2>
+          <div class="small-note">Wählen Sie eine der 48 Versuchsfragen aus. Für den Vergleich ist keine Texteingabe erforderlich.</div>
+          <label for="questionSelect">Fragenkatalog</label>
           <select id="questionSelect"></select>
-          <label for="questionText">Texto</label>
-          <textarea id="questionText"></textarea>
+          <div id="questionMeta" class="question-meta"></div>
+          <label for="selectedQuestion">Ausgewählte Frage</label>
+          <div id="selectedQuestion" class="question-preview"></div>
           <div class="actions">
-            <button id="askButton">Comparar</button>
-            <a class="button secondary" href="/graph-view" target="_blank" rel="noreferrer">Ver grafo</a>
+            <button id="askButton">Beide Methoden vergleichen</button>
+            <a class="button secondary" href="/graph-view" target="_blank" rel="noreferrer">Wissensgraph öffnen</a>
           </div>
-          <div class="small-note">La comparación usa el mismo catálogo y la misma base de conocimiento para ambos métodos.</div>
+          <div class="small-note">Intern wird die englische Originalfrage aus dem Datensatz verwendet. Dadurch bleibt der dokumentierte Versuchsstand reproduzierbar.</div>
+          <details class="custom-question">
+            <summary>Eigene Frage testen (optional)</summary>
+            <label for="customQuestion">Freie Frage</label>
+            <textarea id="customQuestion" placeholder="Eigene Docker- oder Docker-Compose-Frage eingeben"></textarea>
+            <div class="actions">
+              <button id="customAskButton" class="secondary">Eigene Frage vergleichen</button>
+            </div>
+            <div class="small-note">Für freie Fragen existiert keine vorbereitete Referenzantwort. Fachbegriffe aus der englischen Docker-Dokumentation verbessern die Suche.</div>
+          </details>
         </section>
         <section>
-          <h2>Categorías</h2>
+          <h2>Fragekategorien</h2>
           <div id="categories" class="table-wrap"></div>
         </section>
       </aside>
       <div>
         <section>
-          <h2>Resultado</h2>
+          <h2>Vergleichsergebnis</h2>
           <div id="reference" class="reference" hidden></div>
           <div class="answers">
             <div class="answer-panel classic">
               <h3>Klassisches RAG</h3>
-              <div id="classicAnswer" class="answer loading">Selecciona una pregunta y pulsa Comparar.</div>
+              <div id="classicAnswer" class="answer loading">Wählen Sie eine Frage aus und starten Sie den Vergleich.</div>
               <div id="classicEvidence" class="evidence"></div>
             </div>
             <div class="answer-panel graph">
               <h3>GraphRAG</h3>
-              <div id="graphAnswer" class="answer loading">Selecciona una pregunta y pulsa Comparar.</div>
+              <div id="graphAnswer" class="answer loading">Wählen Sie eine Frage aus und starten Sie den Vergleich.</div>
               <div id="graphEvidence" class="evidence"></div>
             </div>
           </div>
+          <div class="small-note">Die Bedienoberfläche ist deutsch. Antwort- und Evidenztexte bleiben in der englischen Originalsprache der ausgewerteten Docker-Dokumentation.</div>
         </section>
         <section>
-          <h2>Voranalyse</h2>
+          <h2>Gespeicherte Voranalyse</h2>
           <img class="chart" src="/chart.png" alt="Voranalyse nach Fragekategorien">
           <div id="comparisonTable" class="table-wrap" style="margin-top: 14px;"></div>
         </section>
       </div>
     </div>
+    <section>
+      <h2>Vollständiger Fragenkatalog</h2>
+      <div class="catalog-filters">
+        <div>
+          <label for="questionSearch">Suche nach ID oder Fragetext</label>
+          <input id="questionSearch" type="search" placeholder="Zum Beispiel Q017, Netzwerk oder Healthcheck">
+        </div>
+        <div>
+          <label for="categoryFilter">Kategorie</label>
+          <select id="categoryFilter"><option value="">Alle Kategorien</option></select>
+        </div>
+      </div>
+      <div id="catalogCount" class="small-note"></div>
+      <div id="questionCatalog" class="table-wrap catalog-wrap"></div>
+    </section>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
     let questions = [];
+
+    const difficultyLabels = {
+      simple: "Einfach",
+      procedural: "Prozedural",
+      relational: "Relational",
+      multi_hop: "Multi-Hop",
+      traceability: "Nachvollziehbarkeit"
+    };
+
+    const relationLabels = {
+      affects: "betrifft",
+      conflicts_with: "steht im Konflikt mit",
+      diagnosed_by: "wird diagnostiziert durch",
+      distinguished_from: "wird unterschieden von",
+      documented_in: "ist dokumentiert in",
+      may_be_caused_by: "kann verursacht werden durch",
+      requires: "erfordert",
+      solved_by: "wird gelöst durch"
+    };
+
+    const germanTypography = {
+      "DNS-Aufloesung": "DNS-Auflösung",
+      "Loesung": "Lösung",
+      "Namenspraefix": "Namenspräfix",
+      "aufgeloeste": "aufgelöste",
+      "aufloesen": "auflösen",
+      "ausgefuehrt": "ausgeführt",
+      "erhaelt": "erhält",
+      "fehlschlaegt": "fehlschlägt",
+      "frueh": "früh",
+      "fuer": "für",
+      "hinzufuegen": "hinzufügen",
+      "laeuft": "läuft",
+      "moechte": "möchte",
+      "pruefen": "prüfen",
+      "ueber": "über",
+      "veraendert": "verändert",
+      "verhaelt": "verhält",
+      "verlaesslicher": "verlässlicher",
+      "veroeffentlicht": "veröffentlicht",
+      "zusammenzufuehren": "zusammenzuführen"
+    };
 
     function esc(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -549,33 +672,119 @@ DASHBOARD_HTML = r"""<!doctype html>
       return `<div class="metric"><strong>${esc(value)}</strong><span>${esc(label)}</span></div>`;
     }
 
+    function displayQuestion(question) {
+      let text = question.question_de || question.question || "";
+      for (const [plain, localized] of Object.entries(germanTypography)) {
+        text = text.replace(new RegExp(`\\b${plain}\\b`, "g"), localized);
+      }
+      return text;
+    }
+
+    function difficultyLabel(value) {
+      return difficultyLabels[value] || value || "Nicht angegeben";
+    }
+
+    function relationLabel(value) {
+      return relationLabels[value] || value || "Relation";
+    }
+
     async function loadStatus() {
       const status = await getJson("/api/status");
       $("stats").innerHTML = [
-        metric("Fuentes", status.sources),
-        metric("Casos", status.support_cases),
-        metric("Preguntas", status.questions),
-        metric("Referencias", status.reference_answers),
-        metric("Nodos", status.graph_nodes),
-        metric("Relaciones", status.graph_relations),
+        metric("Quellen", status.sources),
+        metric("Wissensfälle", status.support_cases),
+        metric("Katalogfragen", status.questions),
+        metric("Referenzantworten", status.reference_answers),
+        metric("Knoten", status.graph_nodes),
+        metric("Relationen", status.graph_relations),
       ].join("");
     }
 
     async function loadQuestions() {
       questions = await getJson("/api/questions");
       $("questionSelect").innerHTML = questions.map((q) =>
-        `<option value="${esc(q.id)}">${esc(q.id)} · ${esc(q.category_label)} · ${esc(q.question)}</option>`
+        `<option value="${esc(q.id)}">${esc(q.id)} · ${esc(q.category_label)} · ${esc(displayQuestion(q))}</option>`
       ).join("");
+
+      const categories = [...new Map(
+        questions.map((q) => [q.category, q.category_label])
+      ).entries()].sort((a, b) => a[1].localeCompare(b[1], "de"));
+      $("categoryFilter").innerHTML = `<option value="">Alle Kategorien</option>${
+        categories.map(([value, label]) =>
+          `<option value="${esc(value)}">${esc(label)}</option>`
+        ).join("")
+      }`;
+
       if (questions.length) {
         $("questionSelect").value = "Q002";
-        const selected = questions.find((q) => q.id === "Q002") || questions[0];
-        $("questionText").value = selected.question;
+        if (!$("questionSelect").value) $("questionSelect").value = questions[0].id;
+        updateSelectedQuestion();
       }
+      renderQuestionCatalog();
+    }
+
+    function selectedQuestion() {
+      return questions.find((q) => q.id === $("questionSelect").value);
+    }
+
+    function updateSelectedQuestion() {
+      const question = selectedQuestion();
+      if (!question) return;
+      $("selectedQuestion").textContent = displayQuestion(question);
+      $("questionMeta").innerHTML = [
+        question.id,
+        question.category_label,
+        difficultyLabel(question.difficulty),
+        `${question.expected_relation_hops} Relationssprünge`
+      ].map((item) => `<span class="pill">${esc(item)}</span>`).join("");
+    }
+
+    function filteredQuestions() {
+      const term = $("questionSearch").value.trim().toLocaleLowerCase("de");
+      const category = $("categoryFilter").value;
+      return questions.filter((question) => {
+        const haystack = [
+          question.id,
+          question.category_label,
+          displayQuestion(question),
+          question.question
+        ].join(" ").toLocaleLowerCase("de");
+        return (!term || haystack.includes(term)) &&
+          (!category || question.category === category);
+      });
+    }
+
+    function renderQuestionCatalog() {
+      const visibleQuestions = filteredQuestions();
+      $("catalogCount").textContent = `${visibleQuestions.length} von ${questions.length} Fragen angezeigt`;
+      if (!visibleQuestions.length) {
+        $("questionCatalog").innerHTML = `<div class="small-note">Keine passende Frage gefunden.</div>`;
+        return;
+      }
+      $("questionCatalog").innerHTML = `<table class="catalog-table"><thead><tr><th>ID</th><th>Kategorie</th><th>Frage</th><th>Schwierigkeit</th><th>Sprünge</th><th></th></tr></thead><tbody>${
+        visibleQuestions.map((question) => `<tr>
+          <td><strong>${esc(question.id)}</strong></td>
+          <td>${esc(question.category_label)}</td>
+          <td>${esc(displayQuestion(question))}</td>
+          <td>${esc(difficultyLabel(question.difficulty))}</td>
+          <td>${esc(question.expected_relation_hops)}</td>
+          <td><button class="catalog-select" data-question-id="${esc(question.id)}">Vergleichen</button></td>
+        </tr>`).join("")
+      }</tbody></table>`;
+
+      $("questionCatalog").querySelectorAll("button[data-question-id]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          $("questionSelect").value = button.dataset.questionId;
+          updateSelectedQuestion();
+          document.querySelector("main").scrollIntoView({ behavior: "smooth" });
+          await askCatalogQuestion();
+        });
+      });
     }
 
     async function loadCategories() {
       const rows = await getJson("/api/categories");
-      $("categories").innerHTML = `<table><thead><tr><th>Categoría</th><th>n</th><th>Hops</th></tr></thead><tbody>${
+      $("categories").innerHTML = `<table><thead><tr><th>Kategorie</th><th>Anzahl</th><th>Ø Sprünge</th></tr></thead><tbody>${
         rows.map((row) => `<tr><td>${esc(row.label)}</td><td>${esc(row.count)}</td><td>${esc(row.avg_hops)}</td></tr>`).join("")
       }</tbody></table>`;
     }
@@ -583,25 +792,26 @@ DASHBOARD_HTML = r"""<!doctype html>
     async function loadComparison() {
       const data = await getJson("/api/latest-comparison");
       if (!data.rows.length) {
-        $("comparisonTable").innerHTML = `<div class="small-note">Todavía no hay comparación guardada.</div>`;
+        $("comparisonTable").innerHTML = `<div class="small-note">Noch keine gespeicherte Vergleichsauswertung verfügbar.</div>`;
         return;
       }
-      $("comparisonTable").innerHTML = `<table><thead><tr><th>Categoría</th><th>Classic</th><th>Graph</th><th>Delta</th></tr></thead><tbody>${
+      $("comparisonTable").innerHTML = `<table><thead><tr><th>Kategorie</th><th>Klassisches RAG</th><th>GraphRAG</th><th>Differenz</th></tr></thead><tbody>${
         data.rows.map((row) => `<tr><td>${esc(row.category_label)}</td><td>${esc(row.classic_keyword_coverage)}</td><td>${esc(row.graph_keyword_coverage)}</td><td>${esc(row.keyword_delta_graph_minus_classic)}</td></tr>`).join("")
       }</tbody></table>`;
     }
 
     function renderEvidence(target, evidence) {
       if (!Array.isArray(evidence) || !evidence.length) {
-        target.innerHTML = `<div class="muted">Sin evidencias.</div>`;
+        target.innerHTML = `<strong>Abgerufene Evidenz</strong><div class="muted">Keine Evidenz gefunden.</div>`;
         return;
       }
-      target.innerHTML = evidence.map((item, index) => {
+      const items = evidence.map((item, index) => {
         if (item.relation) {
-          return `<div class="evidence-item"><strong>${index + 1}. ${esc(item.source_label)}</strong> --${esc(item.relation)}--> <strong>${esc(item.target_label)}</strong><div class="pill-row">${(item.source_ids || []).map((id) => `<span class="pill">${esc(id)}</span>`).join("")}</div></div>`;
+          return `<div class="evidence-item"><strong>${index + 1}. ${esc(item.source_label)}</strong> · ${esc(relationLabel(item.relation))} · <strong>${esc(item.target_label)}</strong><div class="pill-row">${(item.source_ids || []).map((id) => `<span class="pill">${esc(id)}</span>`).join("")}</div></div>`;
         }
         return `<div class="evidence-item"><strong>${index + 1}. ${esc(item.title)}</strong><div class="pill-row">${(item.source_ids || []).map((id) => `<span class="pill">${esc(id)}</span>`).join("")}</div></div>`;
       }).join("");
+      target.innerHTML = `<strong>Abgerufene Evidenz</strong>${items}`;
     }
 
     function renderReference(reference) {
@@ -613,17 +823,19 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
       panel.hidden = false;
       const includes = (reference.must_include || []).map((item) => `<span class="pill">${esc(item)}</span>`).join("");
-      panel.innerHTML = `<h3>Respuesta de referencia</h3><div>${esc(reference.reference_answer)}</div><div class="pill-row">${includes}</div><div class="small-note">${esc(reference.scoring_focus || "")}</div>`;
+      panel.innerHTML = `<h3>Referenzantwort (englischer Originaltext)</h3><div>${esc(reference.reference_answer)}</div><div class="small-note"><strong>Erwartete Inhalte</strong></div><div class="pill-row">${includes}</div><div class="small-note"><strong>Bewertungsschwerpunkt:</strong> ${esc(reference.scoring_focus || "")}</div>`;
     }
 
-    async function ask() {
-      const id = $("questionSelect").value;
-      const question = $("questionText").value.trim();
-      $("classicAnswer").textContent = "Calculando...";
-      $("graphAnswer").textContent = "Calculando...";
+    function setLoading() {
+      $("classicAnswer").textContent = "Vergleich wird berechnet...";
+      $("graphAnswer").textContent = "Vergleich wird berechnet...";
+      $("classicAnswer").classList.add("loading");
+      $("graphAnswer").classList.add("loading");
       $("classicEvidence").innerHTML = "";
       $("graphEvidence").innerHTML = "";
-      const data = await getJson(`/api/query?id=${encodeURIComponent(id)}&question=${encodeURIComponent(question)}`);
+    }
+
+    function renderResult(data) {
       renderReference(data.reference);
       $("classicAnswer").textContent = data.classic.answer;
       $("graphAnswer").textContent = data.graph.answer;
@@ -633,17 +845,42 @@ DASHBOARD_HTML = r"""<!doctype html>
       renderEvidence($("graphEvidence"), data.graph.evidence);
     }
 
+    async function askCatalogQuestion() {
+      const id = $("questionSelect").value;
+      if (!id) return;
+      setLoading();
+      const data = await getJson(`/api/query?id=${encodeURIComponent(id)}`);
+      renderResult(data);
+    }
+
+    async function askCustomQuestion() {
+      const question = $("customQuestion").value.trim();
+      if (!question) {
+        $("customQuestion").focus();
+        $("customQuestion").setCustomValidity("Bitte geben Sie eine Frage ein.");
+        $("customQuestion").reportValidity();
+        return;
+      }
+      $("customQuestion").setCustomValidity("");
+      setLoading();
+      const data = await getJson(`/api/query?question=${encodeURIComponent(question)}`);
+      renderResult(data);
+    }
+
     $("questionSelect").addEventListener("change", () => {
-      const selected = questions.find((q) => q.id === $("questionSelect").value);
-      if (selected) $("questionText").value = selected.question;
+      updateSelectedQuestion();
     });
-    $("askButton").addEventListener("click", ask);
+    $("questionSearch").addEventListener("input", renderQuestionCatalog);
+    $("categoryFilter").addEventListener("change", renderQuestionCatalog);
+    $("customQuestion").addEventListener("input", () => $("customQuestion").setCustomValidity(""));
+    $("askButton").addEventListener("click", askCatalogQuestion);
+    $("customAskButton").addEventListener("click", askCustomQuestion);
 
     Promise.all([loadStatus(), loadQuestions(), loadCategories(), loadComparison()])
-      .then(ask)
+      .then(askCatalogQuestion)
       .catch((error) => {
         console.error(error);
-        $("classicAnswer").textContent = "Error al cargar el dashboard.";
+        $("classicAnswer").textContent = "Die Oberfläche konnte nicht geladen werden.";
         $("graphAnswer").textContent = String(error);
       });
   </script>
@@ -655,9 +892,9 @@ DASHBOARD_HTML = r"""<!doctype html>
 def serve(port: int = DEFAULT_PORT, open_browser: bool = False) -> None:
     server = ThreadingHTTPServer((HOST, port), DashboardHandler)
     url = f"http://{HOST}:{port}/"
-    print("Bachelorarbeit dashboard")
+    print("Versuchsoberfläche der Bachelorarbeit")
     print(f"- URL: {url}")
-    print("- Press Ctrl+C to stop.")
+    print("- Mit Ctrl+C beenden.")
     if open_browser:
         webbrowser.open(url)
     server.serve_forever()
