@@ -49,6 +49,15 @@ run.ps1              Windows entry point
 
 Python 3.11 or newer is required.
 
+Clone the repository and enter its root directory:
+
+```bash
+git clone https://github.com/yohannycamacaro/bachelor-rag-graphrag-docker.git
+cd bachelor-rag-graphrag-docker
+```
+
+### Windows (PowerShell)
+
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -59,6 +68,39 @@ python -m pip install -e .
 .\run.ps1 test
 .\run.ps1 release-check
 ```
+
+### macOS and Linux (Terminal)
+
+The PowerShell wrapper is optional. On macOS and Linux, run the Python entry
+points directly:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+python run_compare.py validate
+python run_compare.py compare
+python -m unittest discover -s tests -v
+python tools/validate_release.py
+```
+
+### Local dashboard
+
+On Windows:
+
+```powershell
+.\run.ps1 ui --open
+```
+
+On macOS and Linux:
+
+```bash
+python tools/serve_dashboard.py --open
+```
+
+The dashboard is available at `http://127.0.0.1:8765`. The core experiment
+does not require a running Docker daemon or an OpenAI API key.
 
 Optional evaluator dependencies:
 
