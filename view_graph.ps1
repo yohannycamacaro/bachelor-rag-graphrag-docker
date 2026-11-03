@@ -10,14 +10,20 @@ if ($PythonCommand) {
     $PythonCandidates += $PythonCommand.Source
 }
 
-$CodexPython = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-if (Test-Path $CodexPython) {
-    $PythonCandidates += $CodexPython
+$PyLauncher = Get-Command py -ErrorAction SilentlyContinue
+if ($PyLauncher) {
+    $PythonCandidates += $PyLauncher.Source
 }
 
 if ($PythonCandidates.Count -eq 0) {
-    throw "No Python executable found. Install Python or run this inside Codex."
+    throw "No Python executable found. Install Python 3 or create a local .venv."
 }
 
-& $PythonCandidates[0] $Exporter
+$PythonExecutable = $PythonCandidates[0]
+$PythonPrefixArgs = @()
+if ([System.IO.Path]::GetFileName($PythonExecutable) -ieq "py.exe") {
+    $PythonPrefixArgs = @("-3")
+}
+
+& $PythonExecutable @PythonPrefixArgs $Exporter
 
